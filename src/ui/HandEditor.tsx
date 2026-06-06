@@ -7,7 +7,12 @@ import type { HandAST, StreetName } from '../core/types'
 
 const STREET_ORDER: StreetName[] = ['Preflop', 'Flop', 'Turn', 'River']
 const SUIT_COLORS: Record<string, string> = { s: '#94a3b8', h: '#f87171', d: '#fb923c', c: '#4ade80' }
-const VERB_LABELS: Record<string, string> = { x: 'Check', c: 'Call', r: 'Raise', f: 'Fold', b: 'Bet' }
+const VERB_LABELS: Record<string, string> = {
+  x: 'Check', c: 'Call', r: 'Raise', f: 'Fold', b: 'Bet', a: 'All In',
+}
+const SHOWDOWN_VERB_LABELS: Record<string, string> = {
+  shows: 'Shows', wins: 'Wins', loses: 'Loses',
+}
 const STAKES_PRESETS = ['$1/$2', '$2/$5', '$5/$10', '$10/$20']
 
 interface Props {
@@ -16,7 +21,6 @@ interface Props {
   onCancel: () => void
 }
 
-// 4-column grid: suits as columns, ranks as rows (A→2)
 function CardGrid({
   usedCards,
   selected,
@@ -31,13 +35,11 @@ function CardGrid({
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(44px, 1fr))', gap: 3, maxWidth: 260 }}>
-      {/* Suit header row */}
       {SUITS.map((suit) => (
         <div key={suit} style={{ textAlign: 'center', color: SUIT_COLORS[suit], fontWeight: 700, fontSize: '0.9rem', paddingBottom: 2 }}>
           {SUIT_GLYPHS[suit]}
         </div>
       ))}
-      {/* Card buttons — flatMap produces a flat child array; each cell has a unique key */}
       {reversedRanks.flatMap((rank) =>
         SUITS.map((suit) => {
           const code = rank + suit
@@ -148,7 +150,7 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
     </div>
   )
 
-  // ── RAW SUMMARY (editable — lets user fix anything mid-recording) ──────────
+  // ── RAW SUMMARY ────────────────────────────────────────────────────────────
   const summary = raw.trim() ? (
     <textarea
       value={raw}
@@ -171,7 +173,7 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
         <StepLabel>Stakes (optional)</StepLabel>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {STAKES_PRESETS.map((s) => (
-            <button key={s} className="btn-secondary" onClick={() => { commit(`Stakes: ${s}\n`); setStakesChosen(true) }}>
+            <button key={s} className="btn-secondary" onClick={() => { commit(`[Stakes: ${s}]\n`); setStakesChosen(true) }}>
               {s}
             </button>
           ))}
@@ -264,7 +266,7 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
 
     const actorText = (actor: string): string => {
       if (!raw || raw.endsWith('\n')) return (currentStreet ?? 'Preflop') + ': ' + actor
-      if (raw.endsWith(': ')) return actor
+      if (raw.endsWith(': ') || raw.endsWith(', ')) return actor
       return ', ' + actor
     }
 
@@ -284,11 +286,16 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
             </button>
           ))}
         </div>
-        {(canAdvance || canSave) && (
+        {(canAdvance || context?.canShowdown || canSave) && (
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
             {canAdvance && nextSt && (
               <button className="btn-secondary" onClick={() => commit('\n' + nextSt + ': ')}>
                 → {nextSt}
+              </button>
+            )}
+            {context?.canShowdown && (
+              <button className="btn-secondary" onClick={() => commit('\nShowdown: ')}>
+                → Showdown
               </button>
             )}
             {canSave && (
@@ -339,6 +346,102 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
         <button className="btn-primary" disabled={!isValid} onClick={() => commit(' ' + amount)}>OK</button>
       </div>
     )
+  } else if (mode === 'AWAIT_AMOUNT_OPT') {
+    const amount = parseInt(amountInput, 10)
+    const isValid = !isNaN(amount) && amount > 0
+    stepLabel = 'Effective amount (optional)'
+    stepContent = (
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <input
+          type="number"
+          min={1}
+          value={amountInput}
+          onChange={(e) => setAmountInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && isValid) commit(' ' + amount) }}
+          autoFocus
+          placeholder="0"
+          style={{
+            width: 100,
+            background: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '0.5rem 0.75rem',
+            fontSize: '0.875rem',
+            outline: 'none',
+            fontFamily: 'inherit',
+          }}
+        />
+        <button className="btn-primary" disabled={!isValid} onClick={() => commit(' ' + amount)}>OK</button>
+        <button className="btn-secondary" onClick={() => commit(', ')}>Skip</button>
+      </div>
+    )
+  } else if (mode === 'AWAIT_SHOWDOWN_ACTOR') {
+    const canSave = context?.canSave
+
+    const showdownActorText = (actor: string): string => {
+      if (raw.endsWith(': ') || raw.endsWith(', ')) return actor
+      return ', ' + actor
+    }
+
+    stepLabel = 'Showdown'
+    stepContent = (
+      <>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {options.map((actor) => (
+            <button key={actor} className="btn-secondary" onClick={() => commit(showdownActorText(actor))}>
+              {actor}
+            </button>
+          ))}
+        </div>
+        {canSave && (
+          <div style={{ marginTop: '0.5rem' }}>
+            <button className="btn-primary" onClick={handleSave}>Save hand</button>
+          </div>
+        )}
+      </>
+    )
+  } else if (mode === 'AWAIT_SHOWDOWN_VERB') {
+    stepLabel = 'Showdown action'
+    stepContent = (
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        {options.map((verb) => (
+          <button key={verb} className="btn-secondary" onClick={() => commit(' ' + verb)}>
+            {SHOWDOWN_VERB_LABELS[verb] ?? verb}
+          </button>
+        ))}
+      </div>
+    )
+  } else if (mode === 'AWAIT_SHOWDOWN_CARDS') {
+    const allCodes = RANKS.flatMap((r) => SUITS.map((s) => r + s))
+    const availableSet = new Set(options)
+    const usedCards = new Set(allCodes.filter((c) => !availableSet.has(c)))
+    const isValid = pendingCards.length === 2
+    stepLabel = 'Shown cards'
+    stepContent = (
+      <>
+        <CardGrid
+          usedCards={usedCards}
+          selected={pendingCards}
+          onToggle={(code) =>
+            setPendingCards((p) => {
+              if (p.includes(code)) return p.filter((c) => c !== code)
+              if (p.length >= 2) return p
+              return [...p, code]
+            })
+          }
+        />
+        <div style={{ marginTop: '0.5rem' }}>
+          <button
+            className="btn-primary"
+            disabled={!isValid}
+            onClick={() => commit(' ' + pendingCards.join(''))}
+          >
+            {isValid ? `Done — ${pendingCards.join(' ')}` : 'Pick 2 cards'}
+          </button>
+        </div>
+      </>
+    )
   }
 
   // ── FREE-TEXT ESCAPE HATCH ─────────────────────────────────────────────────
@@ -358,7 +461,7 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
             value={freeInput}
             onChange={(e) => setFreeInput(e.target.value)}
             autoFocus
-            placeholder="raw text to append…"
+            placeholder="note to add…"
             style={{
               flex: 1,
               background: 'var(--surface)',
@@ -371,7 +474,12 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
               fontFamily: 'inherit',
             }}
           />
-          <button className="btn-primary" onClick={() => { if (freeInput) commit(freeInput) }}>Append</button>
+          <button
+            className="btn-primary"
+            onClick={() => { if (freeInput.trim()) commit('\n# ' + freeInput.trim()) }}
+          >
+            Add note
+          </button>
           <button className="btn-secondary" onClick={() => { setShowFree(false); setFreeInput('') }}>Cancel</button>
         </div>
       )}

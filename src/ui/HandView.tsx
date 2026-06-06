@@ -37,6 +37,7 @@ const VERB_LABELS: Record<string, string> = {
   r: 'raises',
   f: 'folds',
   b: 'bets',
+  a: 'all in',
 }
 
 interface Props {
@@ -136,16 +137,12 @@ export default function HandView({ hand, onBack, onEdit }: Props) {
               const color = actorColor(action.actor)
               const label = action.isHero ? 'Hero' : action.actor
               const verbWord = VERB_LABELS[action.verb] ?? action.verb
-              const amountStr = action.amount !== undefined ? ` $${action.amount}` : ''
+              const amountStr = action.amount !== undefined
+                ? action.verb === 'a' ? ` ${action.amount} eff` : ` $${action.amount}`
+                : ''
               return (
                 <div key={action.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
-                  <span
-                    style={{
-                      color,
-                      fontWeight: action.isHero ? 700 : 500,
-                      minWidth: 60,
-                    }}
-                  >
+                  <span style={{ color, fontWeight: action.isHero ? 700 : 500, minWidth: 60 }}>
                     {label}
                   </span>
                   <span style={{ color: 'var(--text-muted)' }}>{verbWord}{amountStr}</span>
@@ -155,6 +152,35 @@ export default function HandView({ hand, onBack, onEdit }: Props) {
           </div>
         </section>
       ))}
+
+      {/* Showdown */}
+      {vm.showdown && vm.showdown.length > 0 && (
+        <section>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Showdown
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            {vm.showdown.map((sa) => {
+              const label = sa.isHero ? 'Hero' : sa.actor
+              return (
+                <div key={sa.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+                  <span style={{ color: sa.color, fontWeight: sa.isHero ? 700 : 500, minWidth: 60 }}>
+                    {label}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {sa.verb}
+                    {sa.cards && (
+                      <span className="card-glyph" style={{ marginLeft: '0.4rem', letterSpacing: '0.1em' }}>
+                        {formatCardGlyph(sa.cards[0])} {formatCardGlyph(sa.cards[1])}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
     </div>
   )
 }
