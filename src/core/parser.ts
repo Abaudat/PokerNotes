@@ -6,6 +6,9 @@ import type {
   HeroLine,
   Street,
   Action,
+  ShowdownLine,
+  ShowdownAction,
+  ShowdownVerb,
   Token,
   Card,
   Position,
@@ -25,6 +28,7 @@ const VALID_POSITIONS = new Set<string>([
   'UTG',
   'UTG+1',
   'UTG+2',
+  'UTG+3',
   'HJ',
   'CO',
   'BTN',
@@ -34,9 +38,11 @@ const VALID_POSITIONS = new Set<string>([
   'MP',
 ])
 
-const VALID_VERBS = new Set<string>(['x', 'c', 'r', 'f', 'b'])
+const VALID_VERBS = new Set<string>(['x', 'c', 'r', 'f', 'b', 'a'])
 const AMOUNT_VERBS = new Set<string>(['r', 'b'])
+const OPTIONAL_AMOUNT_VERBS = new Set<string>(['a'])
 const STREET_NAMES = new Set<string>(['Preflop', 'Flop', 'Turn', 'River'])
+const SHOWDOWN_VERBS = new Set<string>(['shows', 'wins', 'loses'])
 
 // ---------------------------------------------------------------------------
 // Counter-based ID generation (deterministic within one parse call)
@@ -122,16 +128,12 @@ function parseCards(
   const trimmed = text.trim()
   if (trimmed === '') return tokens
 
-  // Walk through the text character by character, skipping whitespace
-  // and consuming 2-char card codes.
   let i = 0
   while (i < text.length) {
-    // skip whitespace
     if (/\s/.test(text[i])) {
       i++
       continue
     }
-    // consume 2 chars
     if (i + 1 >= text.length) {
       throw new Error(
         `Incomplete card code at offset ${textOffset + i}: "${text.slice(i)}"`,
@@ -156,10 +158,6 @@ function parseCards(
 // Line parsers
 // ---------------------------------------------------------------------------
 
-/**
- * "[Stakes: $2/$5]"  →  StakesLine
- * The raw token value is the text between "[Stakes:" and "]".
- */
 function parseStakesLine(
   line: string,
   lineStart: number,
@@ -168,10 +166,8 @@ function parseStakesLine(
   if (!match) {
     throw new Error(`Malformed Stakes line: "${line}"`)
   }
-  // Locate the trimmed value inside the original line string
-  const innerText = match[1] // e.g. " $2/$5"
-  const trimmedValue = innerText.trim() // e.g. "$2/$5"
-  // Find the trimmed value's position within the line for accurate span
+  const innerText = match[1]
+  const trimmedValue = innerText.trim()
   const innerLocalIdx = line.indexOf(match[1])
   const leadingSpaces = innerText.length - innerText.trimStart().length
   const absStart = lineStart + innerLocalIdx + leadingSpaces
@@ -179,9 +175,6 @@ function parseStakesLine(
   return { raw: makeToken(trimmedValue, absStart, absEnd) }
 }
 
-/**
- * "Board: As 8h Td"  →  BoardLine
- */
 function parseBoardLine(line: string, lineStart: number): BoardLine {
   const colonIdx = line.indexOf(':')
   if (colonIdx === -1) throw new Error(`Malformed Board line: "${line}"`)
@@ -196,9 +189,6 @@ function parseBoardLine(line: string, lineStart: number): BoardLine {
   return { cards }
 }
 
-/**
- * "Hero: BTN AhKs"  →  HeroLine
- */
 function parseHeroLine(line: string, lineStart: number): HeroLine {
   const colonIdx = line.indexOf(':')
   if (colonIdx === -1) throw new Error(`Malformed Hero line: "${line}"`)
@@ -206,7 +196,6 @@ function parseHeroLine(line: string, lineStart: number): HeroLine {
   const afterColonTrimOffset =
     lineStart + colonIdx + 1 + (line.slice(colonIdx + 1).length - line.slice(colonIdx + 1).trimStart().length)
 
-  // Split into whitespace-delimited tokens: first is position, remainder are card text
   const tokens = afterColon.split(/\s+/)
   if (tokens.length < 2) {
     throw new Error(
@@ -214,7 +203,6 @@ function parseHeroLine(line: string, lineStart: number): HeroLine {
     )
   }
 
-  // Find the position token
   const posStr = tokens[0]
   const posLocalIdx = afterColon.indexOf(posStr)
   const posAbsStart = afterColonTrimOffset + posLocalIdx
@@ -223,7 +211,6 @@ function parseHeroLine(line: string, lineStart: number): HeroLine {
   }
   const posToken = makeToken(posStr as Position, posAbsStart, posAbsStart + posStr.length)
 
-  // The two cards follow the position (may be packed "AhKs" or spaced "Ah Ks")
   const cardsText = afterColon.slice(posLocalIdx + posStr.length)
   const cardsOffset = afterColonTrimOffset + posLocalIdx + posStr.length
   const cardTokens = parseCards(cardsText, cardsOffset)
@@ -239,69 +226,80 @@ function parseHeroLine(line: string, lineStart: number): HeroLine {
   }
 }
 
-/**
- * Parse a single action segment like "H r 15" or "BB c" or "V x".
- * `segText`       – trimmed action text
- * `segAbsStart`   – absolute offset of segText[0] in raw
- */
 function parseAction(segText: string, segAbsStart: number): Action {
   const parts = segText.trim().split(/\s+/)
   if (parts.length < 2) {
     throw new Error(`Malformed action "${segText}": expected actor verb [amount]`)
   }
 
-  const [actorStr, verbStr, ...rest] = parts
-
-  // --- actor ---
+  // ── actor ─────────────────────────────────────────────────────────────────
+  const actorStr = parts[0]
   if (!VALID_POSITIONS.has(actorStr)) {
     throw new Error(`Unknown actor "${actorStr}" in action "${segText}"`)
   }
   const actorLocalIdx = segText.indexOf(actorStr)
   const actorAbsStart = segAbsStart + actorLocalIdx
-  const actorToken = makeToken(
-    actorStr as Position,
-    actorAbsStart,
-    actorAbsStart + actorStr.length,
-  )
+  const actorToken = makeToken(actorStr as Position, actorAbsStart, actorAbsStart + actorStr.length)
 
-  // --- verb ---
-  if (!VALID_VERBS.has(verbStr)) {
-    throw new Error(`Unknown verb "${verbStr}" in action "${segText}"`)
-  }
-  const verbLocalIdx = segText.indexOf(verbStr, actorLocalIdx + actorStr.length)
-  const verbAbsStart = segAbsStart + verbLocalIdx
-  const verbToken = makeToken(
-    verbStr as Verb,
-    verbAbsStart,
-    verbAbsStart + verbStr.length,
-  )
+  // ── verb ───────────────────────────────────────────────────────────────────
+  // Accept "all in" (two-word form, canonical) and single 'a' (legacy backward compat)
+  let verbInternal: Verb
+  let verbAbsStart: number
+  let verbAbsEnd: number
+  let restParts: string[]
 
-  // --- amount ---
-  if (AMOUNT_VERBS.has(verbStr)) {
-    if (rest.length === 0) {
-      throw new Error(
-        `Verb "${verbStr}" requires an amount in action "${segText}"`,
-      )
+  const verbWordStart = segText.indexOf(parts[1], actorLocalIdx + actorStr.length)
+
+  if (parts[1] === 'all' && parts.length >= 3 && parts[2] === 'in') {
+    verbInternal = 'a'
+    verbAbsStart = segAbsStart + verbWordStart
+    const inIdx = segText.indexOf('in', verbWordStart + 3) // skip 'all' (3 chars)
+    verbAbsEnd = segAbsStart + inIdx + 2
+    restParts = parts.slice(3)
+  } else {
+    const verbStr = parts[1]
+    if (!VALID_VERBS.has(verbStr)) {
+      throw new Error(`Unknown verb "${verbStr}" in action "${segText}"`)
     }
-    const amountStr = rest[0]
+    verbInternal = verbStr as Verb
+    verbAbsStart = segAbsStart + verbWordStart
+    verbAbsEnd = verbAbsStart + verbStr.length
+    restParts = parts.slice(2)
+  }
+
+  const verbToken = makeToken(verbInternal, verbAbsStart, verbAbsEnd)
+
+  // ── required amount (r, b) ────────────────────────────────────────────────
+  if (AMOUNT_VERBS.has(verbInternal)) {
+    if (restParts.length === 0) {
+      throw new Error(`Verb "${verbInternal}" requires an amount in action "${segText}"`)
+    }
+    const amountStr = restParts[0]
     const amount = Number(amountStr)
     if (!Number.isFinite(amount)) {
-      throw new Error(
-        `Invalid amount "${amountStr}" in action "${segText}"`,
-      )
+      throw new Error(`Invalid amount "${amountStr}" in action "${segText}"`)
     }
-    const amtLocalIdx = segText.indexOf(amountStr, verbLocalIdx + verbStr.length)
+    const amtLocalIdx = segText.indexOf(amountStr, verbAbsEnd - segAbsStart)
     const amtAbsStart = segAbsStart + amtLocalIdx
     const amtToken = makeToken(amount, amtAbsStart, amtAbsStart + amountStr.length)
     return { actor: actorToken, verb: verbToken, amount: amtToken }
   }
 
+  // ── optional amount (a = all-in) ──────────────────────────────────────────
+  if (OPTIONAL_AMOUNT_VERBS.has(verbInternal) && restParts.length > 0) {
+    const amountStr = restParts[0]
+    const amount = Number(amountStr)
+    if (Number.isFinite(amount)) {
+      const amtLocalIdx = segText.indexOf(amountStr, verbAbsEnd - segAbsStart)
+      const amtAbsStart = segAbsStart + amtLocalIdx
+      const amtToken = makeToken(amount, amtAbsStart, amtAbsStart + amountStr.length)
+      return { actor: actorToken, verb: verbToken, amount: amtToken }
+    }
+  }
+
   return { actor: actorToken, verb: verbToken }
 }
 
-/**
- * "Flop: BB x, H b 20, BB c"  →  Street
- */
 function parseStreetLine(line: string, lineStart: number): Street {
   const colonIdx = line.indexOf(':')
   if (colonIdx === -1) throw new Error(`Malformed street line: "${line}"`)
@@ -312,17 +310,14 @@ function parseStreetLine(line: string, lineStart: number): Street {
   }
 
   const afterColon = line.slice(colonIdx + 1)
-  // split on commas, track offsets
   const actions: Action[] = []
 
-  // We need to split on ',' and keep track of where each segment starts
   let searchFrom = 0
   for (const segment of afterColon.split(',')) {
     const localIdx = afterColon.indexOf(segment, searchFrom)
     const absStart = lineStart + colonIdx + 1 + localIdx
     const trimmed = segment.trim()
     if (trimmed !== '') {
-      // The trimmed text starts later within segment
       const trimOffset =
         absStart + (segment.length - segment.trimStart().length)
       actions.push(parseAction(trimmed, trimOffset))
@@ -338,18 +333,74 @@ function parseStreetLine(line: string, lineStart: number): Street {
 }
 
 // ---------------------------------------------------------------------------
+// Showdown line parser
+// ---------------------------------------------------------------------------
+
+function parseShowdownAction(segText: string, segAbsStart: number): ShowdownAction {
+  const parts = segText.trim().split(/\s+/)
+  if (parts.length < 2) {
+    throw new Error(`Malformed showdown action "${segText}": expected position verb [cards]`)
+  }
+
+  const [actorStr, verbStr] = parts
+
+  if (!VALID_POSITIONS.has(actorStr)) {
+    throw new Error(`Unknown position "${actorStr}" in showdown action`)
+  }
+  const actorLocalIdx = segText.indexOf(actorStr)
+  const actorAbsStart = segAbsStart + actorLocalIdx
+  const actorToken = makeToken(actorStr as Position, actorAbsStart, actorAbsStart + actorStr.length)
+
+  if (!SHOWDOWN_VERBS.has(verbStr)) {
+    throw new Error(`Unknown showdown verb "${verbStr}"`)
+  }
+  const verbLocalIdx = segText.indexOf(verbStr, actorLocalIdx + actorStr.length)
+  const verbAbsStart = segAbsStart + verbLocalIdx
+  const verbToken = makeToken(verbStr as ShowdownVerb, verbAbsStart, verbAbsStart + verbStr.length)
+
+  if (verbStr === 'shows') {
+    const cardsText = segText.slice(verbLocalIdx + verbStr.length)
+    const cardsOffset = segAbsStart + verbLocalIdx + verbStr.length
+    const cardTokens = parseCards(cardsText, cardsOffset)
+    if (cardTokens.length !== 2) {
+      throw new Error(`Showdown "shows" must be followed by exactly 2 cards; got ${cardTokens.length}`)
+    }
+    return { actor: actorToken, verb: verbToken, cards: [cardTokens[0], cardTokens[1]] }
+  }
+
+  return { actor: actorToken, verb: verbToken }
+}
+
+function parseShowdownLine(line: string, lineStart: number): ShowdownLine {
+  const colonIdx = line.indexOf(':')
+  if (colonIdx === -1) throw new Error(`Malformed Showdown line: "${line}"`)
+
+  const afterColon = line.slice(colonIdx + 1)
+  const actions: ShowdownAction[] = []
+
+  let searchFrom = 0
+  for (const segment of afterColon.split(',')) {
+    const localIdx = afterColon.indexOf(segment, searchFrom)
+    const absStart = lineStart + colonIdx + 1 + localIdx
+    const trimmed = segment.trim()
+    if (trimmed !== '') {
+      const trimOffset = absStart + (segment.length - segment.trimStart().length)
+      actions.push(parseShowdownAction(trimmed, trimOffset))
+    }
+    searchFrom = localIdx + segment.length
+  }
+
+  if (actions.length === 0) {
+    throw new Error('Showdown line has no actions')
+  }
+
+  return { actions }
+}
+
+// ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
 
-/**
- * Parse a raw hand string into a HandAST.
- *
- * Error policy:
- * - Throws a descriptive Error for any structural issue:
- *   missing/wrong lines, unknown tokens, bad card codes, missing amounts.
- * - Token IDs are counter-based and deterministic within one call (reset
- *   each time parseHand is called).
- */
 export function parseHand(raw: string): HandAST {
   resetIdCounter()
 
@@ -359,7 +410,6 @@ export function parseHand(raw: string): HandAST {
 
   const state = buildState(raw)
 
-  // Skip leading blank lines
   while (
     state.lineIndex < state.lines.length &&
     state.lines[state.lineIndex].text.trim() === ''
@@ -370,6 +420,7 @@ export function parseHand(raw: string): HandAST {
   let stakes: StakesLine | undefined
   let board: BoardLine | undefined
   let hero: HeroLine | undefined
+  let showdown: ShowdownLine | undefined
   const streets: Street[] = []
 
   while (state.lineIndex < state.lines.length) {
@@ -381,7 +432,10 @@ export function parseHand(raw: string): HandAST {
       continue
     }
 
-    if (trimmed.startsWith('[Stakes:')) {
+    if (trimmed.startsWith('#')) {
+      // Comment / free-text annotation — silently skipped
+      advanceLine(state)
+    } else if (trimmed.startsWith('[Stakes:')) {
       stakes = parseStakesLine(line.text, line.start)
       advanceLine(state)
     } else if (trimmed.startsWith('Board:')) {
@@ -392,6 +446,9 @@ export function parseHand(raw: string): HandAST {
       advanceLine(state)
     } else if (STREET_NAMES.has(trimmed.split(':')[0])) {
       streets.push(parseStreetLine(line.text, line.start))
+      advanceLine(state)
+    } else if (trimmed.startsWith('Showdown:')) {
+      showdown = parseShowdownLine(line.text, line.start)
       advanceLine(state)
     } else {
       throw new Error(`Unrecognised line: "${trimmed}"`)
@@ -414,6 +471,7 @@ export function parseHand(raw: string): HandAST {
     board,
     hero,
     streets,
+    showdown,
     raw,
   }
 }

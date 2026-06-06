@@ -41,6 +41,7 @@ export type Position =
   | 'UTG'
   | 'UTG+1'
   | 'UTG+2'
+  | 'UTG+3'
   | 'HJ'
   | 'CO'
   | 'BTN'
@@ -49,8 +50,8 @@ export type Position =
   | 'EP'
   | 'MP'
 
-/** x=check, c=call, r=raise, f=fold, b=bet */
-export type Verb = 'x' | 'c' | 'r' | 'f' | 'b'
+/** x=check, c=call, r=raise, f=fold, b=bet, a=all-in */
+export type Verb = 'x' | 'c' | 'r' | 'f' | 'b' | 'a'
 
 export interface Action {
   actor: Token<Position>
@@ -65,11 +66,6 @@ export interface Street {
   actions: Action[]
 }
 
-/** The full stakes text after "Stakes:" */
-export interface StakesLine {
-  raw: Token<string>
-}
-
 /** 0, 3, 4, or 5 community cards */
 export interface BoardLine {
   cards: Token<Card>[]
@@ -80,14 +76,45 @@ export interface HeroLine {
   cards: [Token<Card>, Token<Card>]
 }
 
+/** The full stakes text after "Stakes:" */
+export interface StakesLine {
+  raw: Token<string>
+}
+
+// ---------------------------------------------------------------------------
+// Showdown
+// ---------------------------------------------------------------------------
+
+export type ShowdownVerb = 'shows' | 'wins' | 'loses'
+
+export interface ShowdownAction {
+  actor: Token<Position>
+  verb: Token<ShowdownVerb>
+  /** Only present when verb = 'shows' */
+  cards?: [Token<Card>, Token<Card>]
+}
+
+export interface ShowdownLine {
+  actions: ShowdownAction[]
+}
+
+// ---------------------------------------------------------------------------
+// Hand AST
+// ---------------------------------------------------------------------------
+
 export interface HandAST {
   id: string
   stakes?: StakesLine
   board: BoardLine
   hero: HeroLine
   streets: Street[]
+  showdown?: ShowdownLine
   raw: string
 }
+
+// ---------------------------------------------------------------------------
+// Suggestion engine
+// ---------------------------------------------------------------------------
 
 export type SuggestionMode =
   | 'AWAIT_BOARD'
@@ -96,6 +123,10 @@ export type SuggestionMode =
   | 'AWAIT_ACTOR'
   | 'AWAIT_VERB'
   | 'AWAIT_AMOUNT'
+  | 'AWAIT_AMOUNT_OPT'
+  | 'AWAIT_SHOWDOWN_ACTOR'
+  | 'AWAIT_SHOWDOWN_VERB'
+  | 'AWAIT_SHOWDOWN_CARDS'
 
 export interface SuggestionContext {
   street?: StreetName
@@ -103,6 +134,7 @@ export interface SuggestionContext {
   facingBet?: boolean
   canAdvance?: boolean
   canSave?: boolean
+  canShowdown?: boolean
 }
 
 export interface SuggestionResult {
