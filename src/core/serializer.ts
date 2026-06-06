@@ -4,10 +4,11 @@ import type { HandAST, Street, Action, ShowdownLine, ShowdownAction } from './ty
 function serializeAction(action: Action): string {
   const actor = action.actor.value
   const verb = action.verb.value
+  const verbText = verb === 'a' ? 'all in' : verb
   if (action.amount !== undefined) {
-    return `${actor} ${verb} ${action.amount.value}`
+    return `${actor} ${verbText} ${action.amount.value}`
   }
-  return `${actor} ${verb}`
+  return `${actor} ${verbText}`
 }
 
 function serializeStreet(street: Street): string {

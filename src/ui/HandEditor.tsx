@@ -8,7 +8,8 @@ import type { HandAST, StreetName } from '../core/types'
 const STREET_ORDER: StreetName[] = ['Preflop', 'Flop', 'Turn', 'River']
 const SUIT_COLORS: Record<string, string> = { s: '#94a3b8', h: '#f87171', d: '#fb923c', c: '#4ade80' }
 const VERB_LABELS: Record<string, string> = {
-  x: 'Check', c: 'Call', r: 'Raise', f: 'Fold', b: 'Bet', a: 'All In',
+  x: 'Check', c: 'Call', r: 'Raise', f: 'Fold', b: 'Bet',
+  a: 'All In', 'all in': 'All In',
 }
 const SHOWDOWN_VERB_LABELS: Record<string, string> = {
   shows: 'Shows', wins: 'Wins', loses: 'Loses',
@@ -114,6 +115,22 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
     setRaw((r) => r + text)
     setPendingCards([])
     setAmountInput('')
+    setShowFree(false)
+    setFreeInput('')
+  }
+
+  // Inserts a # comment BEFORE the last structured line so the current
+  // wizard position (street header, hero line, etc.) stays at the end of raw
+  // and subsequent suggestion-driven commits continue correctly.
+  function commitNote(note: string) {
+    if (!note.trim()) return
+    setHistory((h) => [...h, raw])
+    setRaw((currentRaw) => {
+      const idx = currentRaw.lastIndexOf('\n')
+      const beforeLast = idx >= 0 ? currentRaw.slice(0, idx + 1) : ''
+      const lastLine = idx >= 0 ? currentRaw.slice(idx + 1) : currentRaw
+      return beforeLast + '# ' + note.trim() + '\n' + lastLine
+    })
     setShowFree(false)
     setFreeInput('')
   }
@@ -476,7 +493,7 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
           />
           <button
             className="btn-primary"
-            onClick={() => { if (freeInput.trim()) commit('\n# ' + freeInput.trim()) }}
+            onClick={() => commitNote(freeInput)}
           >
             Add note
           </button>

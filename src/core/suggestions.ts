@@ -17,7 +17,9 @@ const HERO_POSITIONS = [
 
 const STREET_ORDER: StreetName[] = ['Preflop', 'Flop', 'Turn', 'River']
 
+/** Verbs requiring a mandatory amount */
 const AMOUNT_VERBS = new Set(['r', 'b'])
+/** Verbs with an optional amount (all-in). Internal code 'a'; raw text 'all in'. */
 const OPTIONAL_AMOUNT_VERBS = new Set(['a'])
 const SHOWDOWN_VERBS_LIST = ['shows', 'wins', 'loses']
 
@@ -35,7 +37,6 @@ function allCardCodes(): string[] {
   return codes
 }
 
-/** Count 2-char card codes in a string (handles both packed and space-separated). */
 function countCardCodes(text: string): number {
   const trimmed = text.trim()
   if (!trimmed) return 0
@@ -49,16 +50,13 @@ function countCardCodes(text: string): number {
   return count
 }
 
-/** Collect the set of card codes that appear in a string. */
 function collectCardCodes(text: string): Set<string> {
   const used = new Set<string>()
   const trimmed = text.trim()
   let i = 0
   while (i < trimmed.length) {
     if (/\s/.test(trimmed[i])) { i++; continue }
-    if (i + 1 < trimmed.length) {
-      used.add(trimmed[i] + trimmed[i + 1])
-    }
+    if (i + 1 < trimmed.length) used.add(trimmed[i] + trimmed[i + 1])
     i += 2
   }
   return used
@@ -85,7 +83,7 @@ function parsePartialHand(raw: string): PartialHand {
 
   for (const line of lines) {
     if (line.startsWith('#')) continue
-    if (line.startsWith('[')) continue  // stakes or similar bracketed lines
+    if (line.startsWith('[')) continue
     if (line.startsWith('Board:')) {
       boardContent = line.slice('Board:'.length)
     } else if (line.startsWith('Hero:')) {
@@ -95,16 +93,29 @@ function parsePartialHand(raw: string): PartialHand {
     } else {
       for (const streetName of STREET_ORDER) {
         if (line.startsWith(streetName + ':')) {
-          streets.push({
-            name: streetName,
-            actionsStr: line.slice(streetName.length + 1).trim(),
-          })
+          streets.push({ name: streetName, actionsStr: line.slice(streetName.length + 1).trim() })
         }
       }
     }
   }
 
   return { boardContent, heroContent, streets, showdownContent }
+}
+
+// ---------------------------------------------------------------------------
+// Verb extraction (handles "all in" two-word verb → internal 'a')
+// ---------------------------------------------------------------------------
+
+interface VerbResult {
+  verbInternal: string
+  remaining: string[]
+}
+
+function extractVerb(parts: string[]): VerbResult {
+  if (parts[0] === 'all' && parts[1] === 'in') {
+    return { verbInternal: 'a', remaining: parts.slice(2) }
+  }
+  return { verbInternal: parts[0] ?? '', remaining: parts.slice(1) }
 }
 
 // ---------------------------------------------------------------------------
@@ -116,8 +127,8 @@ function isLastActionABet(completeSegments: string[]): boolean {
   const last = completeSegments[completeSegments.length - 1].trim()
   const parts = last.split(/\s+/).filter(Boolean)
   if (parts.length < 2) return false
-  const verb = parts[1]
-  return AMOUNT_VERBS.has(verb) || OPTIONAL_AMOUNT_VERBS.has(verb)
+  const { verbInternal } = extractVerb(parts.slice(1))
+  return AMOUNT_VERBS.has(verbInternal) || OPTIONAL_AMOUNT_VERBS.has(verbInternal)
 }
 
 // ---------------------------------------------------------------------------
@@ -149,6 +160,7 @@ function analyzeStreetActions(
   boardCardCount: number,
 ): StreetAnalysis {
   const segments = actionsStr.split(',').map((s) => s.trim())
+  const hasTrailingComma = segments.length > 0 && segments[segments.length - 1] === ''
   const nonEmpty = segments.filter((s) => s !== '')
 
   if (nonEmpty.length === 0) {
@@ -167,17 +179,18 @@ function analyzeStreetActions(
 
   if (parts.length === 1) {
     const facingBet = isLastActionABet(prevComplete)
-    const verbOptions = facingBet ? ['c', 'r', 'f', 'a'] : ['x', 'b', 'f', 'a']
+    const verbOptions = facingBet ? ['c', 'r', 'f', 'all in'] : ['x', 'b', 'f', 'all in']
     return { mode: 'AWAIT_VERB', options: verbOptions, context: { street: streetName, actor, facingBet } }
   }
 
-  const verb = parts[1]
+  const { verbInternal, remaining } = extractVerb(parts.slice(1))
 
-  if (AMOUNT_VERBS.has(verb) && parts.length === 2) {
+  if (AMOUNT_VERBS.has(verbInternal) && remaining.length === 0) {
     return { mode: 'AWAIT_AMOUNT', options: [], context: { street: streetName, actor } }
   }
 
-  if (OPTIONAL_AMOUNT_VERBS.has(verb) && parts.length === 2) {
+  // All-in: optional amount — only show AWAIT_AMOUNT_OPT when no trailing comma (not yet skipped)
+  if (OPTIONAL_AMOUNT_VERBS.has(verbInternal) && remaining.length === 0 && !hasTrailingComma) {
     return { mode: 'AWAIT_AMOUNT_OPT', options: [], context: { street: streetName, actor } }
   }
 
@@ -211,11 +224,7 @@ function analyzeShowdown(actionsStr: string, usedCards: Set<string>): StreetAnal
   const actor = parts[0]
 
   if (parts.length === 1) {
-    return {
-      mode: 'AWAIT_SHOWDOWN_VERB',
-      options: SHOWDOWN_VERBS_LIST,
-      context: { actor },
-    }
+    return { mode: 'AWAIT_SHOWDOWN_VERB', options: SHOWDOWN_VERBS_LIST, context: { actor } }
   }
 
   const verb = parts[1]
@@ -229,12 +238,7 @@ function analyzeShowdown(actionsStr: string, usedCards: Set<string>): StreetAnal
     }
   }
 
-  // Action is complete — can add more entries or save
-  return {
-    mode: 'AWAIT_SHOWDOWN_ACTOR',
-    options: ALL_POSITIONS,
-    context: { canSave: true },
-  }
+  return { mode: 'AWAIT_SHOWDOWN_ACTOR', options: ALL_POSITIONS, context: { canSave: true } }
 }
 
 // ---------------------------------------------------------------------------
@@ -244,14 +248,12 @@ function analyzeShowdown(actionsStr: string, usedCards: Set<string>): StreetAnal
 export function nextSuggestions(raw: string): SuggestionResult {
   const { boardContent, heroContent, streets, showdownContent } = parsePartialHand(raw)
 
-  // ── AWAIT_BOARD ──────────────────────────────────────────────────────────
   if (boardContent === null) {
     return { mode: 'AWAIT_BOARD', options: ['NO_BOARD', ...allCardCodes()] }
   }
 
   const boardCardCount = countCardCodes(boardContent)
 
-  // ── AWAIT_HERO_POS ───────────────────────────────────────────────────────
   if (heroContent === null) {
     return { mode: 'AWAIT_HERO_POS', options: HERO_POSITIONS }
   }
@@ -261,7 +263,6 @@ export function nextSuggestions(raw: string): SuggestionResult {
     return { mode: 'AWAIT_HERO_POS', options: HERO_POSITIONS }
   }
 
-  // ── AWAIT_HERO_CARDS ─────────────────────────────────────────────────────
   const heroCardStr = heroTokens.slice(1).join('')
   const heroCardCount = countCardCodes(heroCardStr)
 
@@ -272,7 +273,6 @@ export function nextSuggestions(raw: string): SuggestionResult {
     return { mode: 'AWAIT_HERO_CARDS', options: available }
   }
 
-  // ── Showdown (takes priority once started) ───────────────────────────────
   if (showdownContent !== null) {
     const allUsed = collectCardCodes(boardContent)
     collectCardCodes(heroCardStr).forEach((c) => allUsed.add(c))
@@ -281,7 +281,6 @@ export function nextSuggestions(raw: string): SuggestionResult {
     return { mode, options, context }
   }
 
-  // ── Streets ──────────────────────────────────────────────────────────────
   if (streets.length === 0) {
     return { mode: 'AWAIT_ACTOR', options: ALL_POSITIONS, context: { street: 'Preflop' } }
   }

@@ -232,58 +232,65 @@ function parseAction(segText: string, segAbsStart: number): Action {
     throw new Error(`Malformed action "${segText}": expected actor verb [amount]`)
   }
 
-  const [actorStr, verbStr, ...rest] = parts
-
-  // actor
+  // ── actor ─────────────────────────────────────────────────────────────────
+  const actorStr = parts[0]
   if (!VALID_POSITIONS.has(actorStr)) {
     throw new Error(`Unknown actor "${actorStr}" in action "${segText}"`)
   }
   const actorLocalIdx = segText.indexOf(actorStr)
   const actorAbsStart = segAbsStart + actorLocalIdx
-  const actorToken = makeToken(
-    actorStr as Position,
-    actorAbsStart,
-    actorAbsStart + actorStr.length,
-  )
+  const actorToken = makeToken(actorStr as Position, actorAbsStart, actorAbsStart + actorStr.length)
 
-  // verb
-  if (!VALID_VERBS.has(verbStr)) {
-    throw new Error(`Unknown verb "${verbStr}" in action "${segText}"`)
-  }
-  const verbLocalIdx = segText.indexOf(verbStr, actorLocalIdx + actorStr.length)
-  const verbAbsStart = segAbsStart + verbLocalIdx
-  const verbToken = makeToken(
-    verbStr as Verb,
-    verbAbsStart,
-    verbAbsStart + verbStr.length,
-  )
+  // ── verb ───────────────────────────────────────────────────────────────────
+  // Accept "all in" (two-word form, canonical) and single 'a' (legacy backward compat)
+  let verbInternal: Verb
+  let verbAbsStart: number
+  let verbAbsEnd: number
+  let restParts: string[]
 
-  // required amount (r, b)
-  if (AMOUNT_VERBS.has(verbStr)) {
-    if (rest.length === 0) {
-      throw new Error(
-        `Verb "${verbStr}" requires an amount in action "${segText}"`,
-      )
+  const verbWordStart = segText.indexOf(parts[1], actorLocalIdx + actorStr.length)
+
+  if (parts[1] === 'all' && parts.length >= 3 && parts[2] === 'in') {
+    verbInternal = 'a'
+    verbAbsStart = segAbsStart + verbWordStart
+    const inIdx = segText.indexOf('in', verbWordStart + 3) // skip 'all' (3 chars)
+    verbAbsEnd = segAbsStart + inIdx + 2
+    restParts = parts.slice(3)
+  } else {
+    const verbStr = parts[1]
+    if (!VALID_VERBS.has(verbStr)) {
+      throw new Error(`Unknown verb "${verbStr}" in action "${segText}"`)
     }
-    const amountStr = rest[0]
+    verbInternal = verbStr as Verb
+    verbAbsStart = segAbsStart + verbWordStart
+    verbAbsEnd = verbAbsStart + verbStr.length
+    restParts = parts.slice(2)
+  }
+
+  const verbToken = makeToken(verbInternal, verbAbsStart, verbAbsEnd)
+
+  // ── required amount (r, b) ────────────────────────────────────────────────
+  if (AMOUNT_VERBS.has(verbInternal)) {
+    if (restParts.length === 0) {
+      throw new Error(`Verb "${verbInternal}" requires an amount in action "${segText}"`)
+    }
+    const amountStr = restParts[0]
     const amount = Number(amountStr)
     if (!Number.isFinite(amount)) {
-      throw new Error(
-        `Invalid amount "${amountStr}" in action "${segText}"`,
-      )
+      throw new Error(`Invalid amount "${amountStr}" in action "${segText}"`)
     }
-    const amtLocalIdx = segText.indexOf(amountStr, verbLocalIdx + verbStr.length)
+    const amtLocalIdx = segText.indexOf(amountStr, verbAbsEnd - segAbsStart)
     const amtAbsStart = segAbsStart + amtLocalIdx
     const amtToken = makeToken(amount, amtAbsStart, amtAbsStart + amountStr.length)
     return { actor: actorToken, verb: verbToken, amount: amtToken }
   }
 
-  // optional amount (a = all-in)
-  if (OPTIONAL_AMOUNT_VERBS.has(verbStr) && rest.length > 0) {
-    const amountStr = rest[0]
+  // ── optional amount (a = all-in) ──────────────────────────────────────────
+  if (OPTIONAL_AMOUNT_VERBS.has(verbInternal) && restParts.length > 0) {
+    const amountStr = restParts[0]
     const amount = Number(amountStr)
     if (Number.isFinite(amount)) {
-      const amtLocalIdx = segText.indexOf(amountStr, verbLocalIdx + verbStr.length)
+      const amtLocalIdx = segText.indexOf(amountStr, verbAbsEnd - segAbsStart)
       const amtAbsStart = segAbsStart + amtLocalIdx
       const amtToken = makeToken(amount, amtAbsStart, amtAbsStart + amountStr.length)
       return { actor: actorToken, verb: verbToken, amount: amtToken }
