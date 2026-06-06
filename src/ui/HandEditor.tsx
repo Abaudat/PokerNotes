@@ -250,7 +250,7 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
           <button
             className="btn-primary"
             disabled={!isValid}
-            onClick={() => commit(' ' + pendingCards.join(' ') + '\n')}
+            onClick={() => commit(' ' + pendingCards.join(' ') + '\nPreflop: ')}
           >
             {isValid ? `Done — ${pendingCards.join(' ')}` : 'Pick 2 cards'}
           </button>
