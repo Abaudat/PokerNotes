@@ -10,9 +10,12 @@
     "format": "prettier --write .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:emulator": "firebase emulators:exec --only auth,firestore \"vitest run --config vitest.emulator.config.ts\""
   },
   "dependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
+    "firebase": "^12.14.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

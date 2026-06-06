@@ -1,18 +1,23 @@
 import { HERO_COLOR } from '../core/render'
 import { SUIT_GLYPHS } from '../core/cards'
-import type { SavedHand } from '../app/App'
+import type { ListedHand } from '../data/repository'
 
-function heroPreview(hand: SavedHand): string {
-  const { cards } = hand.ast.hero
-  return cards
-    .map((t) => t.value.rank + SUIT_GLYPHS[t.value.suit])
-    .join(' ')
+const STREET_COUNT: Record<string, number> = { Preflop: 1, Flop: 2, Turn: 3, River: 4 }
+
+function heroPreview(heroCards: string): string {
+  const parts: string[] = []
+  for (let i = 0; i + 1 < heroCards.length; i += 2) {
+    const rank = heroCards[i]
+    const suit = heroCards[i + 1] as keyof typeof SUIT_GLYPHS
+    parts.push(rank + (SUIT_GLYPHS[suit] ?? suit))
+  }
+  return parts.join(' ')
 }
 
 interface Props {
-  hands: SavedHand[]
+  hands: ListedHand[]
   onNew: () => void
-  onView: (hand: SavedHand) => void
+  onView: (id: string) => void
   onDelete: (id: string) => void
 }
 
@@ -45,12 +50,11 @@ export default function HandHistory({ hands, onNew, onView, onDelete }: Props) {
       )}
 
       {hands.map((hand) => {
-        const stakes = hand.ast.stakes?.raw.value
-        const pos = hand.ast.hero.position.value
-        const cards = heroPreview(hand)
-        const date = hand.savedAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-        const time = hand.savedAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-        const streetCount = hand.ast.streets.length
+        const { stakes, heroPosition, heroCards, streetReached } = hand.summary
+        const streetCount = STREET_COUNT[streetReached] ?? 1
+        const cards = heroPreview(heroCards)
+        const date = hand.createdAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+        const time = hand.createdAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 
         return (
           <div
@@ -65,9 +69,8 @@ export default function HandHistory({ hands, onNew, onView, onDelete }: Props) {
               gap: '0.75rem',
               cursor: 'pointer',
             }}
-            onClick={() => onView(hand)}
+            onClick={() => onView(hand.id)}
           >
-            {/* Hero cards */}
             <div
               style={{
                 fontFamily: "'Cascadia Code', 'Fira Mono', monospace",
@@ -81,19 +84,17 @@ export default function HandHistory({ hands, onNew, onView, onDelete }: Props) {
               {cards}
             </div>
 
-            {/* Main info */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                 {stakes ? `${stakes} NLH` : 'Unspecified stakes'}
                 {' · '}
-                <span style={{ color: HERO_COLOR }}>{pos}</span>
+                <span style={{ color: HERO_COLOR }}>{heroPosition}</span>
               </div>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '0.15rem' }}>
                 {streetCount} street{streetCount !== 1 ? 's' : ''} &nbsp;·&nbsp; {date} {time}
               </div>
             </div>
 
-            {/* Delete button — stops propagation so click doesn't open the hand */}
             <button
               className="btn-danger"
               onClick={(e) => { e.stopPropagation(); onDelete(hand.id) }}
