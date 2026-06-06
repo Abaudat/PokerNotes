@@ -88,3 +88,25 @@ export interface HandAST {
   streets: Street[]
   raw: string
 }
+
+export type SuggestionMode =
+  | 'AWAIT_BOARD'
+  | 'AWAIT_HERO_POS'
+  | 'AWAIT_HERO_CARDS'
+  | 'AWAIT_ACTOR'
+  | 'AWAIT_VERB'
+  | 'AWAIT_AMOUNT'
+
+export interface SuggestionContext {
+  street?: StreetName
+  actor?: string
+  facingBet?: boolean
+  canAdvance?: boolean
+  canSave?: boolean
+}
+
+export interface SuggestionResult {
+  mode: SuggestionMode
+  options: string[]
+  context?: SuggestionContext
+}
