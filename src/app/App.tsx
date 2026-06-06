@@ -13,7 +13,7 @@ export interface SavedHand {
 
 type View =
   | { kind: 'history' }
-  | { kind: 'editor'; initialRaw?: string }
+  | { kind: 'editor'; initialRaw?: string; handId?: string }
   | { kind: 'view'; hand: SavedHand }
 
 export default function App() {
@@ -24,6 +24,11 @@ export default function App() {
     const saved: SavedHand = { id: ast.id, raw, ast, savedAt: new Date() }
     setHands((prev) => [saved, ...prev])
     setView({ kind: 'view', hand: saved })
+  }
+
+  function updateHand(id: string, raw: string, ast: HandAST) {
+    setHands((prev) => prev.map((h) => h.id === id ? { ...h, raw, ast } : h))
+    setView({ kind: 'history' })
   }
 
   function deleteHand(id: string) {
@@ -59,7 +64,9 @@ export default function App() {
       {view.kind === 'editor' && (
         <HandEditor
           initialRaw={view.initialRaw}
-          onSave={saveHand}
+          onSave={view.handId
+            ? (raw, ast) => updateHand(view.handId!, raw, ast)
+            : saveHand}
           onCancel={() => setView({ kind: 'history' })}
         />
       )}
@@ -68,7 +75,7 @@ export default function App() {
         <HandView
           hand={view.hand}
           onBack={() => setView({ kind: 'history' })}
-          onEdit={() => setView({ kind: 'editor', initialRaw: view.hand.raw })}
+          onEdit={() => setView({ kind: 'editor', initialRaw: view.hand.raw, handId: view.hand.id })}
         />
       )}
     </div>

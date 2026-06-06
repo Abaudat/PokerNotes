@@ -148,23 +148,19 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
     </div>
   )
 
-  // ── RAW SUMMARY ────────────────────────────────────────────────────────────
+  // ── RAW SUMMARY (editable — lets user fix anything mid-recording) ──────────
   const summary = raw.trim() ? (
-    <pre style={{
-      background: 'var(--surface2)',
-      border: '1px solid var(--border)',
-      borderRadius: 'var(--radius)',
-      padding: '0.5rem 0.75rem',
-      fontSize: '0.75rem',
-      color: 'var(--text-muted)',
-      margin: 0,
-      whiteSpace: 'pre-wrap',
-      wordBreak: 'break-all',
-      maxHeight: 120,
-      overflowY: 'auto',
-    }}>
-      {raw}
-    </pre>
+    <textarea
+      value={raw}
+      rows={5}
+      spellCheck={false}
+      onChange={(e) => {
+        setRaw(e.target.value)
+        setPendingCards([])
+        setAmountInput('')
+      }}
+      style={{ fontSize: '0.75rem', color: 'var(--text-muted)', resize: 'vertical' }}
+    />
   ) : null
 
   // ── STAKES STEP ────────────────────────────────────────────────────────────
@@ -198,7 +194,11 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
           usedCards={new Set()}
           selected={pendingCards}
           onToggle={(code) =>
-            setPendingCards((p) => p.includes(code) ? p.filter((c) => c !== code) : [...p, code])
+            setPendingCards((p) => {
+              if (p.includes(code)) return p.filter((c) => c !== code)
+              if (p.length >= 5) return p
+              return [...p, code]
+            })
           }
         />
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
