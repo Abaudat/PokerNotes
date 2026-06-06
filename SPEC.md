@@ -98,22 +98,26 @@ card     = rank suit ; rank ∈ 2..9,T,J,Q,K,A ; suit ∈ s,h,d,c
 
 ## 6. Suggestion engine (the speed core)
 
-Pure function: `nextSuggestions(ast, cursor) → { mode, options[] }`.
+Pure function: `nextSuggestions(raw) → { mode, options[], context? }`.
 
-| Mode | When | Options shown |
-|---|---|---|
-| `AWAIT_BOARD` | new hand | card grid; "No board (folded pre)"; "Done" |
-| `AWAIT_HERO_POS` | board done | 8 positions + EP/MP |
-| `AWAIT_HERO_CARDS` | hero pos set | card grid (pick 2) |
-| `AWAIT_ACTOR` | start of an action | likely next position(s) + full list |
-| `AWAIT_VERB` | actor chosen | facing a bet → Call/Raise/Fold; else → Check/Bet/Fold |
-| `AWAIT_AMOUNT` | verb ∈ {r,b} | chip picker + manual; (stretch) pot-relative sizes |
-| post-action | action closed | more actions, or **Next street** / **Save** |
+Takes the current raw string (which may be partial/incomplete) and returns what to prompt for next.
+
+| Mode | When | `options` | `context` fields |
+|---|---|---|---|
+| `AWAIT_BOARD` | No Board: line | `['NO_BOARD', ...all52]` | — |
+| `AWAIT_HERO_POS` | Board done | all positions | — |
+| `AWAIT_HERO_CARDS` | Hero pos set | all 52 minus used cards | — |
+| `AWAIT_ACTOR` | Need next actor | all positions | `street`, `canAdvance`, `canSave` |
+| `AWAIT_VERB` | Actor set | `['x','b','f']` or `['c','r','f']` | `street`, `facingBet` |
+| `AWAIT_AMOUNT` | Verb ∈ {r,b} | `[]` (free numeric) | `street` |
+
+`context.canAdvance` is true when there are enough board cards to move to the next street.
+`context.canSave` is true when the last action is complete (the hand could end here).
 
 Canonical example: state after `… H r 40, CO` (actor `CO`, facing a raise) ⇒ `AWAIT_VERB`
-with options **Call, Raise, Fold**. All heuristics (next-actor order, facing-bet detection,
-street-advance availability) are pure and unit-tested; the user can always override a
-suggestion with free entry.
+with options `['c','r','f']` and `context.facingBet = true`. All heuristics (facing-bet
+detection, street-advance availability) are pure and unit-tested; free-text entry is always
+available as an escape hatch.
 
 ## 7. Presentation (pure → view-model)
 
@@ -173,10 +177,41 @@ users/{uid}/hands/{handId} = {
 
 ## 11. ≤10s recording flow (UX)
 
-New hand → board card grid (tap 0/3/4/5 + Done) → Hero position (tap) → Hero cards (tap 2)
-→ per street: tap actor → tap verb → (if bet/raise) tap chips → repeat / Next street →
-auto-save. Suggestions minimize taps; everything is overridable; Hero is pre-selected as the
-default actor where sensible.
+**The editor is a guided wizard, not a text box.** Each step calls `nextSuggestions(raw)` and renders one input. The raw string is built silently as the user taps.
+
+### Step-by-step flow
+
+1. **Stakes** (optional pre-step): quick-tap presets (`$1/$2`, `$2/$5`, `$5/$10`, `$10/$20`) or Skip. Prepends `Stakes: X/Y\n`.
+
+2. **Board cards** (`AWAIT_BOARD`): card picker grid. "No board" (if 0 selected) or "Done" (enabled at 3–5 cards). Selection count badge shown.
+
+3. **Hero position** (`AWAIT_HERO_POS`): button row of positions.
+
+4. **Hero hole cards** (`AWAIT_HERO_CARDS`): card picker grid; board cards are disabled. "Done" enabled at exactly 2 selected; button label shows the chosen cards.
+
+5. **Street actions loop:**
+   - `AWAIT_ACTOR`: position buttons. Also **→ Next street** if `canAdvance`, **Save hand** if `canSave`.
+   - `AWAIT_VERB`: `[Check] [Bet] [Fold]` or `[Call] [Raise] [Fold]` based on `facingBet`.
+   - `AWAIT_AMOUNT`: numeric input with OK / Enter.
+
+6. **Save**: `parseHand(raw)` → `onSave(raw, ast)`.
+
+### Card picker grid layout
+
+4 columns (suits ♠ ♥ ♦ ♣), 13 rows (A → 2). Each cell: `{rank}{suit glyph}` button.
+- Disabled (used): opacity 0.2, not clickable.
+- Selected (pending): accent background, black text.
+- Default: surface background, suit-colored glyph.
+
+### Persistent UI elements
+
+- **Undo**: reverts the raw string to its previous state (history stack).
+- **Raw summary**: small `<pre>` showing the accumulating raw string.
+- **"··· type manually"** escape hatch: text input appending arbitrary raw text. Used for Mississippi straddle, villain behavior annotations, etc.
+
+### Edit mode
+
+When `initialRaw` is provided, skip the wizard and show a plain `<textarea>`. Editing a recorded hand is rare; in-place token editing is a future milestone.
 
 ## 12. Project structure
 
