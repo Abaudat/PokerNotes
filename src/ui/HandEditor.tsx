@@ -203,10 +203,10 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
         />
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
           {pendingCards.length === 0 && (
-            <button className="btn-secondary" onClick={() => commit('Board:\n')}>No board</button>
+            <button className="btn-secondary" onClick={() => commit('Board:\nHero: ')}>No board</button>
           )}
           {pendingCards.length > 0 && (
-            <button className="btn-primary" disabled={!validCount} onClick={() => commit('Board: ' + pendingCards.join(' ') + '\n')}>
+            <button className="btn-primary" disabled={!validCount} onClick={() => commit('Board: ' + pendingCards.join(' ') + '\nHero: ')}>
               Done ({pendingCards.length})
             </button>
           )}
@@ -221,7 +221,7 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
     stepContent = (
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         {options.map((pos) => (
-          <button key={pos} className="btn-secondary" onClick={() => commit('Hero: ' + pos)}>
+          <button key={pos} className="btn-secondary" onClick={() => commit(pos + ' ')}>
             {pos}
           </button>
         ))}
@@ -250,7 +250,7 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
           <button
             className="btn-primary"
             disabled={!isValid}
-            onClick={() => commit(' ' + pendingCards.join(' ') + '\nPreflop: ')}
+            onClick={() => commit(pendingCards.join('') + '\nPreflop: ')}
           >
             {isValid ? `Done — ${pendingCards.join(' ')}` : 'Pick 2 cards'}
           </button>
