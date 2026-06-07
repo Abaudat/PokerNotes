@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { clearFirestoreHands, getTestUserUid, recordMinimalHand } from './helpers'
 
 // Seeded hand: no stakes, no board, BTN, A♥K♠, Hero checks preflop
+// Opens the recording editor via HandView → Edit button
 test.beforeEach(async ({ page }) => {
   await clearFirestoreHands(await getTestUserUid())
   await page.goto('/')
@@ -10,41 +11,29 @@ test.beforeEach(async ({ page }) => {
 })
 
 // Test 37
-test('Edit textarea is pre-filled with the hand\'s current raw text', async ({ page }) => {
-  const value = await page.locator('textarea').inputValue()
-  expect(value).toContain('BTN')
-  expect(value).toContain('AhKs')
+test('Recording screen shows the recorded hand\'s chips pre-populated', async ({ page }) => {
+  await expect(page.locator('[data-chip-id="hero:pos"]')).toHaveText('BTN')
+  await expect(page.locator('[data-chip-id="hero:card:0"]')).toHaveText('A♥')
+  await expect(page.locator('[data-chip-id="hero:card:1"]')).toHaveText('K♠')
 })
 
 // Test 38
-test('Valid edited text shows a success indicator', async ({ page }) => {
-  await expect(page.getByText('✓ Valid hand')).toBeVisible()
-})
-
-// Test 39
-test('Syntactically invalid text shows a parse error message', async ({ page }) => {
-  await page.locator('textarea').fill('invalid text here')
-  await expect(page.getByText(/⚠/)).toBeVisible()
-})
-
-// Test 40
-test('Save button is disabled when the text is invalid', async ({ page }) => {
-  await page.locator('textarea').fill('invalid text here')
-  await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled()
+test('Save hand button is available for a complete pre-populated hand', async ({ page }) => {
+  await expect(page.getByRole('button', { name: 'Save hand' })).toBeVisible()
 })
 
 // Test 41
-test('Saving updated text returns to the history list', async ({ page }) => {
-  await page.locator('textarea').fill('Board:\nHero: BTN AsQh\nPreflop: H x')
-  await page.getByRole('button', { name: 'Save' }).click()
+test('Saving returns to the history list', async ({ page }) => {
+  await page.getByRole('button', { name: 'Save hand' }).click()
   await expect(page.getByRole('heading', { name: 'Hand history' })).toBeVisible()
 })
 
 // Test 42
 test('The updated hand appears with new content in the history list', async ({ page }) => {
-  await page.locator('textarea').fill('Board:\nHero: BTN AsQh\nPreflop: H x')
-  await page.getByRole('button', { name: 'Save' }).click()
-  await expect(page.getByText('A♠ Q♥', { exact: true })).toBeVisible()
+  await page.locator('[data-chip-id="hero:pos"]').click()
+  await page.getByRole('button', { name: 'CO', exact: true }).click()
+  await page.getByRole('button', { name: 'Save hand' }).click()
+  await expect(page.getByText('CO').first()).toBeVisible()
 })
 
 // Test 43
@@ -55,7 +44,8 @@ test('Cancel returns to history without saving', async ({ page }) => {
 
 // Test 44
 test('The hand is unchanged in history after cancel', async ({ page }) => {
-  await page.locator('textarea').fill('Board:\nHero: CO AsQh\nPreflop: H x')
+  await page.locator('[data-chip-id="hero:pos"]').click()
+  await page.getByRole('button', { name: 'CO', exact: true }).click()
   await page.getByRole('button', { name: 'Cancel' }).click()
-  await expect(page.getByText('A♥ K♠', { exact: true })).toBeVisible()
+  await expect(page.getByText('BTN').first()).toBeVisible()
 })

@@ -5,6 +5,7 @@ import { SUIT_GLYPHS } from './cards'
 export type ChipKind =
   | 'stakes'
   | 'board-card'
+  | 'board-card-add'
   | 'hero-pos'
   | 'hero-card'
   | 'action-actor'
@@ -17,6 +18,7 @@ export type ChipKind =
 
 export type EditKind =
   | 'board-card'
+  | 'board-card-add'
   | 'hero-pos'
   | 'hero-card'
   | 'actor'
@@ -70,10 +72,6 @@ function formatCardText(code: string): string {
   const suitCode = code[1]
   const glyph = SUIT_GLYPHS[suitCode as keyof typeof SUIT_GLYPHS] ?? suitCode
   return rank + glyph
-}
-
-function label(key: string, text: string): ChipLine {
-  return { key, chips: [{ id: key, kind: 'label', text, span: null, editKind: null }] }
 }
 
 // ---------------------------------------------------------------------------
@@ -442,10 +440,32 @@ export function buildRecordingView(raw: string): ChipLine[] {
       }
     } else if (trimmed.startsWith('Board:')) {
       const cards = tokenizeBoardCards(text, start)
+      const colonIdx = text.indexOf(':')
+      const afterColonOffset = start + colonIdx + 1
+      const afterColonText = text.slice(colonIdx + 1)
+      const insertPoint = cards.length > 0
+        ? cards[cards.length - 1].span!.end
+        : afterColonOffset + afterColonText.trimEnd().length
+      const allChips: Chip[] = [...cards]
+      if (cards.length < 5) {
+        allChips.push({
+          id: 'board:add',
+          kind: 'board-card-add',
+          text: '+',
+          span: { start: insertPoint, end: insertPoint },
+          editKind: 'board-card-add',
+        })
+      }
       if (cards.length === 0) {
-        result.push(label('board:empty', 'No board'))
+        result.push({
+          key: 'board:empty',
+          chips: [
+            { id: 'board:empty-label', kind: 'label', text: 'No board', span: null, editKind: null },
+            ...allChips,
+          ],
+        })
       } else {
-        result.push({ key: 'board', chips: cards })
+        result.push({ key: 'board', chips: allChips })
       }
     } else if (trimmed.startsWith('Hero:')) {
       const chips = tokenizeHeroLine(text, start)

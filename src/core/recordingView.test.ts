@@ -117,6 +117,51 @@ describe('board card chips', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Board "add card" chip
+// ---------------------------------------------------------------------------
+
+describe('board:add chip', () => {
+  it('appears for a 3-card board', () => {
+    const raw = 'Board: As 8h Td\nHero: BTN AhKs\nPreflop: H x'
+    const chip = chipById(raw, 'board:add')
+    expect(chip).toBeDefined()
+    expect(chip!.editKind).toBe('board-card-add')
+  })
+
+  it('does not appear for a 5-card board', () => {
+    const raw = 'Board: As 8h Td Jc 2s\nHero: BTN AhKs\nPreflop: H x'
+    const chip = chipById(raw, 'board:add')
+    expect(chip).toBeUndefined()
+  })
+
+  it('appears for a 4-card board', () => {
+    const raw = 'Board: As 8h Td Jc\nHero: BTN AhKs\nPreflop: H x'
+    const chip = chipById(raw, 'board:add')
+    expect(chip).toBeDefined()
+  })
+
+  it('appears for an empty board', () => {
+    const raw = 'Board:\nHero: BTN AhKs\nPreflop: H x'
+    const chip = chipById(raw, 'board:add')
+    expect(chip).toBeDefined()
+  })
+
+  it('inserting at a 3-card board span adds a 4th card', () => {
+    const raw = 'Board: As 8h Td\nHero: BTN AhKs\nPreflop: H x'
+    const chip = chipById(raw, 'board:add')!
+    const result = applyChipEdit(raw, chip.span!, ' Jc')
+    expect(result.startsWith('Board: As 8h Td Jc')).toBe(true)
+  })
+
+  it('inserting at an empty board span adds the first card', () => {
+    const raw = 'Board:\nHero: BTN AhKs\nPreflop: H x'
+    const chip = chipById(raw, 'board:add')!
+    const result = applyChipEdit(raw, chip.span!, ' As')
+    expect(result.startsWith('Board: As')).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Hero position span
 // ---------------------------------------------------------------------------
 
