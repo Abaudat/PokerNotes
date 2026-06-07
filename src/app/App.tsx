@@ -3,6 +3,7 @@ import {
   getAuth,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
 } from 'firebase/auth'
@@ -28,6 +29,12 @@ type View =
   | { kind: 'history' }
   | { kind: 'editor'; initialRaw?: string; handId?: string }
   | { kind: 'view'; hand: SavedHand }
+
+if (import.meta.env.VITE_USE_EMULATOR === 'true') {
+  ;(window as unknown as Record<string, unknown>).__signInForTest = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(getAuth(getFirebaseApp()), email, password)
+  }
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined)
