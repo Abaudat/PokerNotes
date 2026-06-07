@@ -48,7 +48,7 @@ test('Board cards already selected as board cards are disabled in the hole card 
   await page.getByRole('button', { name: '4♠' }).click()
   await page.getByRole('button', { name: 'Done (3)' }).click()
   await page.getByRole('button', { name: 'BTN' }).click()
-  await expect(page.getByRole('button', { name: '2♠' })).toBeDisabled()
+  await expect(page.locator('[data-testid="card-picker"]').getByRole('button', { name: '2♠', exact: true })).toBeDisabled()
 })
 
 // Test 13

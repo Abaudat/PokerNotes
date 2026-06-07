@@ -27,7 +27,7 @@ const SHOWDOWN_VERBS_LIST = ['shows', 'wins', 'loses']
 // Helpers — card codes
 // ---------------------------------------------------------------------------
 
-function allCardCodes(): string[] {
+export function allCardCodes(): string[] {
   const codes: string[] = []
   for (const rank of RANKS) {
     for (const suit of SUITS) {
@@ -37,7 +37,7 @@ function allCardCodes(): string[] {
   return codes
 }
 
-function countCardCodes(text: string): number {
+export function countCardCodes(text: string): number {
   const trimmed = text.trim()
   if (!trimmed) return 0
   let count = 0
@@ -50,7 +50,7 @@ function countCardCodes(text: string): number {
   return count
 }
 
-function collectCardCodes(text: string): Set<string> {
+export function collectCardCodes(text: string): Set<string> {
   const used = new Set<string>()
   const trimmed = text.trim()
   let i = 0
@@ -122,7 +122,7 @@ function extractVerb(parts: string[]): VerbResult {
 // Helpers — facing-bet detection
 // ---------------------------------------------------------------------------
 
-function isLastActionABet(completeSegments: string[]): boolean {
+export function isLastActionABet(completeSegments: string[]): boolean {
   if (completeSegments.length === 0) return false
   const last = completeSegments[completeSegments.length - 1].trim()
   const parts = last.split(/\s+/).filter(Boolean)
