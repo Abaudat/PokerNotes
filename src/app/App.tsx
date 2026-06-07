@@ -3,6 +3,9 @@ import {
   getAuth,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithEmailAndPassword,
+  setPersistence,
+  browserLocalPersistence,
   signOut,
   GoogleAuthProvider,
 } from 'firebase/auth'
@@ -28,6 +31,14 @@ type View =
   | { kind: 'history' }
   | { kind: 'editor'; initialRaw?: string; handId?: string }
   | { kind: 'view'; hand: SavedHand }
+
+if (import.meta.env.VITE_USE_EMULATOR === 'true') {
+  ;(window as unknown as Record<string, unknown>).__signInForTest = async (email: string, password: string) => {
+    const auth = getAuth(getFirebaseApp())
+    await setPersistence(auth, browserLocalPersistence)
+    await signInWithEmailAndPassword(auth, email, password)
+  }
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined)

@@ -1,4 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app'
+import { getAuth, connectAuthEmulator } from 'firebase/auth'
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
 import type { FirebaseApp } from 'firebase/app'
 
 const firebaseConfig = {
@@ -10,6 +12,14 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
+let emulatorsConnected = false
+
 export function getFirebaseApp(): FirebaseApp {
-  return getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
+  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
+  if (import.meta.env.VITE_USE_EMULATOR === 'true' && !emulatorsConnected) {
+    emulatorsConnected = true
+    connectAuthEmulator(getAuth(app), 'http://localhost:9099', { disableWarnings: true })
+    connectFirestoreEmulator(getFirestore(app), 'localhost', 8080)
+  }
+  return app
 }

@@ -10,6 +10,8 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
+      '**/.claude/**',
+      'e2e/**',
       'src/data/firestoreRepository.test.ts',
     ],
   },
