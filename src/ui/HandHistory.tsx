@@ -1,17 +1,33 @@
+import React from 'react'
 import { HERO_COLOR } from '../core/render'
 import { SUIT_GLYPHS } from '../core/cards'
 import type { ListedHand } from '../data/repository'
 
 const STREET_COUNT: Record<string, number> = { Preflop: 1, Flop: 2, Turn: 3, River: 4 }
 
-function heroPreview(heroCards: string): string {
-  const parts: string[] = []
+const SUIT_COLORS: Record<string, string> = {
+  '♠': '#94a3b8',
+  '♥': '#f87171',
+  '♦': '#fb923c',
+  '♣': '#4ade80',
+}
+
+function heroPreview(heroCards: string): React.ReactNode {
+  const nodes: React.ReactNode[] = []
   for (let i = 0; i + 1 < heroCards.length; i += 2) {
     const rank = heroCards[i]
-    const suit = heroCards[i + 1] as keyof typeof SUIT_GLYPHS
-    parts.push(rank + (SUIT_GLYPHS[suit] ?? suit))
+    const suitCode = heroCards[i + 1] as keyof typeof SUIT_GLYPHS
+    const glyph = SUIT_GLYPHS[suitCode] ?? suitCode
+    const color = SUIT_COLORS[glyph] ?? 'inherit'
+    if (nodes.length > 0) nodes.push(' ')
+    nodes.push(
+      <span key={i}>
+        {rank}
+        <span style={{ color }}>{glyph}</span>
+      </span>
+    )
   }
-  return parts.join(' ')
+  return <>{nodes}</>
 }
 
 interface Props {
