@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: 'html',
   globalSetup: './e2e/global-setup.ts',
   use: {
-    baseURL: 'http://localhost:5173/PokerNotes/',
+    baseURL: 'http://localhost:5174/PokerNotes/',
     storageState: './e2e/.auth/user.json',
     trace: 'on-first-retry',
   },
@@ -26,9 +26,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'cross-env VITE_USE_EMULATOR=true npx vite',
-    url: 'http://localhost:5173/PokerNotes/',
-    reuseExistingServer: !process.env.CI,
+    command: 'cross-env VITE_USE_EMULATOR=true npx vite --port 5174',
+    url: 'http://localhost:5174/PokerNotes/',
+    reuseExistingServer: false,
     timeout: 30000,
   },
 })

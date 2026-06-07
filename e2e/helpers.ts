@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 
 const FIRESTORE_EMULATOR = 'http://localhost:8080'
-const PROJECT_ID = 'pokernotes-70a94'
+const PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID ?? 'pokernotes-70a94'
 
 /**
  * Taps through the wizard to save a minimal hand:

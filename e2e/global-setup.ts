@@ -1,12 +1,13 @@
 import { chromium } from '@playwright/test'
 import * as fs from 'fs'
 import * as path from 'path'
+import { fileURLToPath } from 'url'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const AUTH_FILE = path.join(__dirname, '.auth', 'user.json')
 const TEST_EMAIL = 'playwright@test.com'
 const TEST_PASSWORD = 'test1234'
 const AUTH_EMULATOR = 'http://localhost:9099'
-const PROJECT_ID = 'pokernotes-70a94'
 
 async function createTestUser() {
   const res = await fetch(
@@ -34,12 +35,14 @@ export default async function globalSetup() {
   const browser = await chromium.launch()
   const page = await browser.newPage()
 
-  await page.goto('http://localhost:5173/PokerNotes/')
+  await page.goto('http://localhost:5174/PokerNotes/')
 
   // Wait for the app to load and the test seam to be available
-  await page.waitForFunction(() => typeof (window as any).__signInForTest === 'function', {
-    timeout: 10000,
-  })
+  await page.waitForFunction(
+    () => typeof (window as any).__signInForTest === 'function',
+    undefined,
+    { timeout: 10000 }
+  )
 
   await page.evaluate(
     async ({ email, password }: { email: string; password: string }) => {
@@ -50,6 +53,12 @@ export default async function globalSetup() {
 
   // Wait until the authenticated UI is visible (history header)
   await page.waitForSelector('h2', { timeout: 10000 })
+  // Wait for Firebase to write the auth token to localStorage (browserLocalPersistence)
+  await page.waitForFunction(
+    () => Object.keys(window.localStorage).some(k => k.startsWith('firebase:authUser:')),
+    undefined,
+    { timeout: 5000 }
+  )
 
   await page.context().storageState({ path: AUTH_FILE })
   await browser.close()

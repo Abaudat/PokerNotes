@@ -4,6 +4,8 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   signInWithEmailAndPassword,
+  setPersistence,
+  browserLocalPersistence,
   signOut,
   GoogleAuthProvider,
 } from 'firebase/auth'
@@ -32,7 +34,9 @@ type View =
 
 if (import.meta.env.VITE_USE_EMULATOR === 'true') {
   ;(window as unknown as Record<string, unknown>).__signInForTest = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(getAuth(getFirebaseApp()), email, password)
+    const auth = getAuth(getFirebaseApp())
+    await setPersistence(auth, browserLocalPersistence)
+    await signInWithEmailAndPassword(auth, email, password)
   }
 }
 
