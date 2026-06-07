@@ -119,6 +119,167 @@ describe('AWAIT_ACTOR', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Preflop position ordering
+// ---------------------------------------------------------------------------
+
+describe('preflop position ordering', () => {
+  it('excludes positions that have already spoken', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: HJ b 50,`)
+    expect(r.mode).toBe('AWAIT_ACTOR')
+    expect(r.options).not.toContain('UTG')
+    expect(r.options).not.toContain('UTG+1')
+    expect(r.options).not.toContain('UTG+2')
+    expect(r.options).not.toContain('UTG+3')
+    expect(r.options).not.toContain('HJ')
+    expect(r.options).toContain('CO')
+    expect(r.options).toContain('BTN')
+    expect(r.options).toContain('BB')
+    expect(r.options).toContain('SB')
+  })
+
+  it('suggests positions in UTG > BTN > SB > BB order', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: HJ b 50,`)
+    const opts = r.options
+    expect(opts.indexOf('CO')).toBeLessThan(opts.indexOf('BTN'))
+    expect(opts.indexOf('BTN')).toBeLessThan(opts.indexOf('SB'))
+    expect(opts.indexOf('SB')).toBeLessThan(opts.indexOf('BB'))
+  })
+
+  it('removes H from suggestions after H has spoken', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: H r 40,`)
+    expect(r.options).not.toContain('H')
+  })
+
+  it('after a raise includes unspoken positions after raiser and spoken positions', () => {
+    // HJ bets, CO calls, BTN raises → SB+BB (first timers) and HJ+CO (second timers)
+    const r = nextSuggestions(`${BASE}\nPreflop: HJ b 50, CO c, BTN r 100,`)
+    expect(r.mode).toBe('AWAIT_ACTOR')
+    expect(r.options).toContain('SB')
+    expect(r.options).toContain('BB')
+    expect(r.options).toContain('HJ')
+    expect(r.options).toContain('CO')
+    expect(r.options).not.toContain('BTN')  // raiser not suggested
+    expect(r.options).not.toContain('UTG')  // skipped (before HJ) not suggested
+  })
+
+  it('after a raise, first timers appear before second timers', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: HJ b 50, CO c, BTN r 100,`)
+    const opts = r.options
+    expect(opts.indexOf('SB')).toBeLessThan(opts.indexOf('HJ'))
+    expect(opts.indexOf('BB')).toBeLessThan(opts.indexOf('CO'))
+  })
+
+  it('after all-in, treats it the same as a raise', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: HJ b 50, BTN all in,`)
+    expect(r.options).toContain('SB')
+    expect(r.options).toContain('BB')
+    expect(r.options).toContain('HJ')
+    expect(r.options).not.toContain('BTN')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Postflop position suggestions
+// ---------------------------------------------------------------------------
+
+describe('postflop position suggestions', () => {
+  it('suggests only positions that appeared in preflop', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: HJ b 50, BTN c, SB c\nFlop: `)
+    expect(r.mode).toBe('AWAIT_ACTOR')
+    expect(r.options).not.toContain('UTG')
+    expect(r.options).not.toContain('CO')
+    expect(r.options).toContain('HJ')
+    expect(r.options).toContain('BTN')
+    expect(r.options).toContain('SB')
+  })
+
+  it('suggests only positions after the last actor on the current street', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: HJ b 50, BTN c, SB c\nFlop: BTN x,`)
+    expect(r.mode).toBe('AWAIT_ACTOR')
+    expect(r.options).not.toContain('HJ')
+    expect(r.options).not.toContain('BTN')
+    expect(r.options).toContain('SB')
+  })
+
+  it('resets available positions at the start of each new street', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: HJ b 50, SB c\nFlop: HJ x, SB x\nTurn: `)
+    expect(r.mode).toBe('AWAIT_ACTOR')
+    expect(r.options).toContain('HJ')
+    expect(r.options).toContain('SB')
+    expect(r.options).not.toContain('BTN')
+  })
+
+  it('excludes positions that explicitly folded in preflop', () => {
+    // HJ bets, CO calls, SB raises, BB folds, HJ calls, CO calls
+    // BB explicitly folded → not a postflop actor; HJ, CO, SB are active
+    const raw = 'Board: As 8h Td\nHero: UTG AhKs\nPreflop: HJ b 25, CO c, SB r 100, BB f, HJ c, CO c\nFlop: '
+    const r = nextSuggestions(raw)
+    expect(r.mode).toBe('AWAIT_ACTOR')
+    expect(r.options).toContain('HJ')
+    expect(r.options).toContain('CO')
+    expect(r.options).toContain('SB')
+    expect(r.options).not.toContain('BB')
+  })
+
+  it('excludes positions that implicitly folded in preflop (skipped in re-open response order)', () => {
+    // HJ bets, CO raises, BB calls — HJ never responded to CO's raise.
+    // BB (first timer after CO) called before HJ (second timer) got to act → HJ implicitly folded.
+    const raw = 'Board: As 8h Td\nHero: UTG AhKs\nPreflop: HJ b 25, CO r 50, BB c\nFlop: '
+    const r = nextSuggestions(raw)
+    expect(r.mode).toBe('AWAIT_ACTOR')
+    expect(r.options).toContain('CO')
+    expect(r.options).toContain('BB')
+    expect(r.options).not.toContain('HJ')
+  })
+
+  it('postflop: after a raise includes first timers then second timers', () => {
+    // Preflop: HJ, CO, SB. Flop: HJ checks, CO bets, SB raises
+    const r = nextSuggestions(`${BASE}\nPreflop: HJ b 50, CO c, SB c\nFlop: HJ x, CO b 30, SB r 100,`)
+    expect(r.mode).toBe('AWAIT_ACTOR')
+    expect(r.options).toContain('HJ')  // second timer
+    expect(r.options).toContain('CO')  // second timer
+    expect(r.options).not.toContain('SB')   // raiser
+    expect(r.options).not.toContain('BTN')  // not a preflop actor
+    // HJ and CO should be second timers — SB (last in order here) has no first timers after it among preflop actors
+  })
+})
+
+  it('after a re-open and a response, skips positions that were bypassed (implied fold)', () => {
+    // UTG bets, HJ calls, SB raises — UTG calls before BB acts => BB is implied fold
+    // Only HJ (who has not yet responded to SB's raise) should be suggested
+    const raw = 'Board: As 8h Td\nHero: UTG AhKs\nPreflop: UTG b 5, HJ c, SB r 25, UTG c,'
+    const r = nextSuggestions(raw)
+    expect(r.mode).toBe('AWAIT_ACTOR')
+    expect(r.options).toEqual(['HJ'])
+  })
+
+// ---------------------------------------------------------------------------
+// Multi-street fold tracking
+// ---------------------------------------------------------------------------
+
+describe('multi-street fold tracking', () => {
+  it('excludes a player who explicitly folded on the flop from turn suggestions', () => {
+    // Preflop: UTG, SB, BB active. Flop: SB folds. Turn: only UTG and BB remain.
+    const raw = 'Board: As 8h Td 2c\nHero: UTG AhKs\nPreflop: UTG b 5, SB r 25, BB c, UTG c\nFlop: UTG x, SB f, BB x\nTurn: '
+    const r = nextSuggestions(raw)
+    expect(r.mode).toBe('AWAIT_ACTOR')
+    expect(r.options).toContain('UTG')
+    expect(r.options).toContain('BB')
+    expect(r.options).not.toContain('SB')
+  })
+
+  it('excludes a player who implicitly folded on the flop from turn suggestions', () => {
+    // Preflop: HJ, CO, SB active. Flop: CO bets, SB raises, HJ calls (CO never responds → implied fold).
+    const raw = 'Board: As 8h Td 2c\nHero: UTG AhKs\nPreflop: HJ b 10, CO c, SB c\nFlop: CO b 20, SB r 80, HJ c\nTurn: '
+    const r = nextSuggestions(raw)
+    expect(r.mode).toBe('AWAIT_ACTOR')
+    expect(r.options).toContain('SB')
+    expect(r.options).toContain('HJ')
+    expect(r.options).not.toContain('CO')
+  })
+})
+
+// ---------------------------------------------------------------------------
 // AWAIT_VERB
 // ---------------------------------------------------------------------------
 
