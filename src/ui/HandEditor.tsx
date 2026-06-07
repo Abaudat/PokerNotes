@@ -92,6 +92,85 @@ function CardGrid({
   )
 }
 
+// ── Poker chip components ────────────────────────────────────────────────────
+const CHIP_COLORS: Record<number, { fill: string; text: string }> = {
+  1:   { fill: '#94a3b8', text: '#0f172a' },
+  5:   { fill: '#ef4444', text: '#fff'    },
+  25:  { fill: '#22c55e', text: '#fff'    },
+  100: { fill: '#1e293b', text: '#e2e8f0' },
+}
+const CHIP_DENOMS = [1, 5, 25, 100] as const
+
+function PokerChip({ denom }: { denom: number }) {
+  const { fill, text } = CHIP_COLORS[denom] ?? CHIP_COLORS[1]
+  return (
+    <svg width="52" height="52" viewBox="0 0 52 52" aria-label={`$${denom}`}>
+      <circle cx="26" cy="27" r="22" fill="rgba(0,0,0,0.25)" />
+      <circle cx="26" cy="26" r="22" fill={fill} />
+      <circle cx="26" cy="26" r="18.5" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="6" strokeDasharray="8 6.9" />
+      <circle cx="26" cy="26" r="13" fill={fill} stroke="rgba(255,255,255,0.35)" strokeWidth="1.5" />
+      <text x="26" y="26" textAnchor="middle" dominantBaseline="central" fill={text} fontSize={denom >= 100 ? '9' : '10'} fontWeight="700" fontFamily="system-ui, sans-serif">{denom}</text>
+    </svg>
+  )
+}
+
+function ChipAmountInput({
+  amountInput,
+  onAmountChange,
+  onSubmit,
+  onSkip,
+}: {
+  amountInput: string
+  onAmountChange: (v: string) => void
+  onSubmit: (amount: number) => void
+  onSkip?: () => void
+}) {
+  const amount = parseInt(amountInput, 10)
+  const isValid = !isNaN(amount) && amount > 0
+
+  const addChip = (denom: number) => {
+    const current = isNaN(amount) ? 0 : amount
+    onAmountChange(String(current + denom))
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div style={{ display: 'flex', gap: '0.25rem' }}>
+        {CHIP_DENOMS.map((d) => (
+          <button key={d} onClick={() => addChip(d)} title={`+$${d}`}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', borderRadius: '50%', lineHeight: 0 }}>
+            <PokerChip denom={d} />
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>$</span>
+        <input
+          type="number"
+          min={1}
+          value={amountInput}
+          onChange={(e) => onAmountChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && isValid) onSubmit(amount) }}
+          placeholder="0"
+          style={{
+            width: 80,
+            background: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '0.5rem 0.75rem',
+            fontSize: '0.875rem',
+            outline: 'none',
+            fontFamily: 'inherit',
+          }}
+        />
+        <button className="btn-primary" disabled={!isValid} onClick={() => isValid && onSubmit(amount)}>OK</button>
+        {onSkip && <button className="btn-secondary" onClick={onSkip}>Skip</button>}
+      </div>
+    </div>
+  )
+}
+
 // ── ActiveEdit state ─────────────────────────────────────────────────────────
 type EditStep = 'pick' | 'verb' | 'amount' | 'amount-opt'
 interface ActiveEdit {
@@ -180,7 +259,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
 
   function openEdit(chip: Chip) {
     setPendingCards([])
-    setAmountInput('')
+    setAmountInput(chip.editKind === 'note' ? (chip.meta?.note ?? '') : '')
     setActiveEdit({
       chip,
       rawSnapshot: raw,
@@ -250,7 +329,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
       return { ...base, color: suitCode ? SUIT_COLORS[suitCode] : 'var(--text)' }
     }
     if (chip.kind === 'note') {
-      return { ...base, color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.78rem', cursor: 'default' }
+      return { ...base, color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.78rem' }
     }
     if (chip.kind === 'label') {
       return { ...base, background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'default', padding: '0.2rem 0' }
@@ -258,10 +337,31 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     return base
   }
 
+  function sectionHeader(key: string): string | null {
+    if (key === 'stakes') return 'Stakes'
+    if (key === 'board' || key === 'board:empty') return 'Board'
+    if (key === 'hero') return 'Hero'
+    if (key === 'showdown') return 'Showdown'
+    if (key.startsWith('street:')) return key.slice('street:'.length)
+    return null
+  }
+
+  const headerStyle: React.CSSProperties = {
+    fontSize: '0.7rem',
+    color: 'var(--text-muted)',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.08em',
+    minWidth: 56,
+    flexShrink: 0,
+  }
+
   const recordedDisplay = chipLines.length > 0 ? (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
       {chipLines.map((line) => (
         <div key={line.key} style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {sectionHeader(line.key) && (
+            <span style={headerStyle}>{sectionHeader(line.key)}</span>
+          )}
           {line.chips.map((chip) => (
             chip.editKind ? (
               <button
@@ -366,6 +466,34 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
             </div>
           </div>
         )
+      } else if (chip.editKind === 'note') {
+        const isValid = amountInput.trim().length > 0
+        editContent = (
+          <div>
+            {editHeader}
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                value={amountInput}
+                onChange={(e) => setAmountInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && isValid) applyEdit(amountInput.trim()) }}
+                autoFocus
+                placeholder="note…"
+                style={{
+                  flex: 1,
+                  background: 'var(--surface)',
+                  color: 'var(--text)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  padding: '0.5rem 0.75rem',
+                  fontSize: '0.875rem',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                }}
+              />
+              <button className="btn-primary" disabled={!isValid} onClick={() => applyEdit(amountInput.trim())}>OK</button>
+            </div>
+          </div>
+        )
       }
     } else if (step === 'verb') {
       const facingBet = chip.meta?.facingBet ?? false
@@ -397,68 +525,27 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
         </div>
       )
     } else if (step === 'amount') {
-      const amount = parseInt(amountInput, 10)
-      const isValid = !isNaN(amount) && amount > 0
       const chosenVerb = activeEdit.chosenVerb ?? 'b'
       editContent = (
         <div>
           {editHeader}
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>$</span>
-            <input
-              type="number"
-              min={1}
-              value={amountInput}
-              onChange={(e) => setAmountInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && isValid) applyEdit(`${chosenVerb} ${amount}`) }}
-              autoFocus
-              placeholder="0"
-              style={{
-                width: 100,
-                background: 'var(--surface)',
-                color: 'var(--text)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                padding: '0.5rem 0.75rem',
-                fontSize: '0.875rem',
-                outline: 'none',
-                fontFamily: 'inherit',
-              }}
-            />
-            <button className="btn-primary" disabled={!isValid} onClick={() => applyEdit(`${chosenVerb} ${amount}`)}>OK</button>
-          </div>
+          <ChipAmountInput
+            amountInput={amountInput}
+            onAmountChange={setAmountInput}
+            onSubmit={(n) => applyEdit(`${chosenVerb} ${n}`)}
+          />
         </div>
       )
     } else if (step === 'amount-opt') {
-      const amount = parseInt(amountInput, 10)
-      const isValid = !isNaN(amount) && amount > 0
       editContent = (
         <div>
           {editHeader}
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <input
-              type="number"
-              min={1}
-              value={amountInput}
-              onChange={(e) => setAmountInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && isValid) applyEdit(`all in ${amount}`) }}
-              autoFocus
-              placeholder="0"
-              style={{
-                width: 100,
-                background: 'var(--surface)',
-                color: 'var(--text)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                padding: '0.5rem 0.75rem',
-                fontSize: '0.875rem',
-                outline: 'none',
-                fontFamily: 'inherit',
-              }}
-            />
-            <button className="btn-primary" disabled={!isValid} onClick={() => applyEdit(`all in ${amount}`)}>OK</button>
-            <button className="btn-secondary" onClick={() => applyEdit('all in')}>Skip</button>
-          </div>
+          <ChipAmountInput
+            amountInput={amountInput}
+            onAmountChange={setAmountInput}
+            onSubmit={(n) => applyEdit(`all in ${n}`)}
+            onSkip={() => applyEdit('all in')}
+          />
         </div>
       )
     }
@@ -634,64 +721,23 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
       </div>
     )
   } else if (mode === 'AWAIT_AMOUNT') {
-    const amount = parseInt(amountInput, 10)
-    const isValid = !isNaN(amount) && amount > 0
     stepLabel = 'Amount'
     stepContent = (
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        <span style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>$</span>
-        <input
-          type="number"
-          min={1}
-          value={amountInput}
-          onChange={(e) => setAmountInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && isValid) commit(' ' + amount) }}
-          autoFocus
-          placeholder="0"
-          style={{
-            width: 100,
-            background: 'var(--surface)',
-            color: 'var(--text)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '0.5rem 0.75rem',
-            fontSize: '0.875rem',
-            outline: 'none',
-            fontFamily: 'inherit',
-          }}
-        />
-        <button className="btn-primary" disabled={!isValid} onClick={() => commit(' ' + amount)}>OK</button>
-      </div>
+      <ChipAmountInput
+        amountInput={amountInput}
+        onAmountChange={setAmountInput}
+        onSubmit={(n) => commit(' ' + n)}
+      />
     )
   } else if (mode === 'AWAIT_AMOUNT_OPT') {
-    const amount = parseInt(amountInput, 10)
-    const isValid = !isNaN(amount) && amount > 0
     stepLabel = 'Effective amount (optional)'
     stepContent = (
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-        <input
-          type="number"
-          min={1}
-          value={amountInput}
-          onChange={(e) => setAmountInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && isValid) commit(' ' + amount) }}
-          autoFocus
-          placeholder="0"
-          style={{
-            width: 100,
-            background: 'var(--surface)',
-            color: 'var(--text)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '0.5rem 0.75rem',
-            fontSize: '0.875rem',
-            outline: 'none',
-            fontFamily: 'inherit',
-          }}
-        />
-        <button className="btn-primary" disabled={!isValid} onClick={() => commit(' ' + amount)}>OK</button>
-        <button className="btn-secondary" onClick={() => commit(', ')}>Skip</button>
-      </div>
+      <ChipAmountInput
+        amountInput={amountInput}
+        onAmountChange={setAmountInput}
+        onSubmit={(n) => commit(' ' + n)}
+        onSkip={() => commit(', ')}
+      />
     )
   } else if (mode === 'AWAIT_SHOWDOWN_ACTOR') {
     const canSave = context?.canSave

@@ -25,6 +25,7 @@ export type EditKind =
   | 'showdown-verb'
   | 'showdown-card'
   | 'stakes'
+  | 'note'
   | null
 
 export interface ChipMeta {
@@ -34,6 +35,7 @@ export interface ChipMeta {
   facingBet?: boolean
   street?: string
   actor?: string
+  note?: string
 }
 
 export interface Chip {
@@ -416,15 +418,20 @@ export function buildRecordingView(raw: string): ChipLine[] {
     if (!trimmed) continue
 
     if (trimmed.startsWith('#')) {
-      const noteText = trimmed.slice(1).trim()
+      const hashIdx = text.indexOf('#')
+      const afterHash = text.slice(hashIdx + 1)
+      const noteLeading = afterHash.length - afterHash.trimStart().length
+      const noteText = afterHash.trim()
+      const noteAbsStart = start + hashIdx + 1 + noteLeading
       result.push({
         key: `note:${noteIdx}`,
         chips: [{
           id: `note:${noteIdx}`,
           kind: 'note',
           text: `# ${noteText}`,
-          span: null,
-          editKind: null,
+          span: noteText ? { start: noteAbsStart, end: noteAbsStart + noteText.length } : null,
+          editKind: noteText ? 'note' : null,
+          meta: { note: noteText },
         }],
       })
       noteIdx++
