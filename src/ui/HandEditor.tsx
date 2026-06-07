@@ -190,32 +190,6 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
   const [showFree, setShowFree] = useState(false)
   const [activeEdit, setActiveEdit] = useState<ActiveEdit | null>(null)
 
-  // ── EDIT MODE ──────────────────────────────────────────────────────────────
-  if (initialRaw !== undefined) {
-    let parsed: HandAST | null = null
-    let parseError: string | null = null
-    if (raw.trim()) {
-      try { parsed = parseHand(raw) }
-      catch (e) { parseError = (e as Error).message }
-    }
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 600 }}>Edit hand</h2>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn-secondary" onClick={onCancel}>Cancel</button>
-            <button className="btn-primary" disabled={!parsed} onClick={() => parsed && onSave(raw, parsed)}>Save</button>
-          </div>
-        </div>
-        <textarea value={raw} onChange={(e) => setRaw(e.target.value)} rows={10} autoFocus spellCheck={false} />
-        <div style={{ minHeight: '1.5rem', fontSize: '0.8rem' }}>
-          {parseError && <span style={{ color: 'var(--danger)' }}>⚠ {parseError}</span>}
-          {parsed && <span style={{ color: 'var(--success)' }}>✓ Valid hand</span>}
-        </div>
-      </div>
-    )
-  }
-
   // ── RECORDING MODE helpers ─────────────────────────────────────────────────
   function commit(text: string) {
     setHistory((h) => [...h, raw])
@@ -310,6 +284,9 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
       const suitCode = chip.meta?.cardCode?.[1]
       return { ...base, color: suitCode ? SUIT_COLORS[suitCode] : 'var(--text)' }
     }
+    if (chip.kind === 'board-card-add') {
+      return { ...base, border: '1px dashed var(--border)', background: 'transparent', color: 'var(--text-muted)', fontWeight: 700 }
+    }
     if (chip.kind === 'hero-pos') {
       return { ...base, background: HERO_COLOR, color: '#000', border: 'none', fontWeight: 700 }
     }
@@ -386,9 +363,10 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
   if (activeEdit) {
     const { chip, step } = activeEdit
 
+    const editHeaderLabel = chip.editKind === 'board-card-add' ? 'Add board card' : `Editing: ${chip.text}`
     const editHeader = (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-        <StepLabel>Editing: {chip.text}</StepLabel>
+        <StepLabel>{editHeaderLabel}</StepLabel>
         <button className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }} onClick={cancelEdit} data-testid="cancel-edit">Cancel edit</button>
       </div>
     )
@@ -405,6 +383,21 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
               onToggle={(code) => {
                 setPendingCards([code])
                 applyEdit(code)
+              }}
+            />
+          </div>
+        )
+      } else if (chip.editKind === 'board-card-add') {
+        const usedCards = chip.span ? usedCardsExcept(raw, chip.span) : new Set<string>()
+        editContent = (
+          <div>
+            {editHeader}
+            <CardGrid
+              usedCards={usedCards}
+              selected={pendingCards}
+              onToggle={(code) => {
+                setPendingCards([code])
+                applyEdit(' ' + code)
               }}
             />
           </div>
@@ -554,7 +547,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
   // ── HEADER ─────────────────────────────────────────────────────────────────
   const header = (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <h2 style={{ fontSize: '1rem', fontWeight: 600 }}>New hand</h2>
+      <h2 style={{ fontSize: '1rem', fontWeight: 600 }}>{initialRaw !== undefined ? 'Edit hand' : 'New hand'}</h2>
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         {history.length > 0 && (
           <button className="btn-secondary" onClick={undo}>← Undo</button>

@@ -53,7 +53,7 @@ test('Back button returns to the history list', async ({ page }) => {
 })
 
 // Test 36
-test('Edit button makes the edit textarea visible', async ({ page }) => {
+test('Edit button opens the hand in the recording editor', async ({ page }) => {
   await page.getByRole('button', { name: 'Edit' }).click()
-  await expect(page.locator('textarea')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Edit hand' })).toBeVisible()
 })
