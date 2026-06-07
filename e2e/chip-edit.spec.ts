@@ -443,6 +443,29 @@ test('edit showdown card 1 — swap', async ({ page }) => {
 
 // ── Save after edits ──────────────────────────────────────────────────────────
 
+// ── Note chip ─────────────────────────────────────────────────────────────────
+
+test('edit note chip — change note text', async ({ page }) => {
+  await recordMinimalComplete(page)
+  await page.getByRole('button', { name: /type manually/ }).click()
+  await page.getByPlaceholder('note to add…').fill('original note')
+  await page.getByRole('button', { name: 'Add note' }).click()
+
+  await expect(page.locator('[data-chip-id="note:0"]')).toBeVisible()
+
+  await page.locator('[data-chip-id="note:0"]').click()
+  await expect(page.getByText(/Editing:/)).toBeVisible()
+
+  const noteInput = page.getByPlaceholder('note…')
+  await noteInput.clear()
+  await noteInput.fill('updated note')
+  await page.getByRole('button', { name: 'OK' }).click()
+
+  await expect(page.locator('[data-chip-id="note:0"]')).toHaveText('# updated note')
+})
+
+// ── Save after edits ──────────────────────────────────────────────────────────
+
 test('save succeeds after chip edits', async ({ page }) => {
   await recordUpToPreflop(page)
   await page.getByRole('button', { name: 'H', exact: true }).click()
