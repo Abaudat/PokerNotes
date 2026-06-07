@@ -34,7 +34,6 @@ export async function getTestUserUid(): Promise<string> {
  */
 export async function recordMinimalHand(page: Page): Promise<void> {
   await page.getByRole('button', { name: '+ New hand' }).click()
-  await page.getByRole('button', { name: 'Skip' }).click()
   await page.getByRole('button', { name: 'No board' }).click()
   await page.getByRole('button', { name: 'BTN' }).click()
   await page.getByRole('button', { name: 'A♥' }).click()

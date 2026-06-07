@@ -18,6 +18,7 @@ const STAKES_PRESETS = ['$1/$2', '$2/$5', '$5/$10', '$10/$20']
 
 interface Props {
   initialRaw?: string
+  defaultStakes?: string
   onSave: (raw: string, ast: HandAST) => void
   onCancel: () => void
 }
@@ -74,12 +75,12 @@ function CardGrid({
   )
 }
 
-export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
+export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel }: Props) {
   const [raw, setRaw] = useState(initialRaw ?? '')
   const [history, setHistory] = useState<string[]>([])
   const [pendingCards, setPendingCards] = useState<string[]>([])
   const [amountInput, setAmountInput] = useState('')
-  const [stakesChosen, setStakesChosen] = useState(initialRaw !== undefined)
+  const [selectedStakes, setSelectedStakes] = useState<string | null>(defaultStakes ?? null)
   const [freeInput, setFreeInput] = useState('')
   const [showFree, setShowFree] = useState(false)
 
@@ -182,33 +183,38 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
     />
   ) : null
 
-  // ── STAKES STEP ────────────────────────────────────────────────────────────
-  if (!stakesChosen) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {header}
-        <StepLabel>Stakes (optional)</StepLabel>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {STAKES_PRESETS.map((s) => (
-            <button key={s} className="btn-secondary" onClick={() => { commit(`[Stakes: ${s}]\n`); setStakesChosen(true) }}>
-              {s}
-            </button>
-          ))}
-          <button className="btn-secondary" onClick={() => setStakesChosen(true)}>Skip</button>
-        </div>
-      </div>
-    )
-  }
-
   // ── STEP CONTENT ───────────────────────────────────────────────────────────
   let stepLabel = ''
   let stepContent: ReactNode = null
 
   if (mode === 'AWAIT_BOARD') {
     const validCount = pendingCards.length === 0 || (pendingCards.length >= 3 && pendingCards.length <= 5)
+    const stakesPrefix = selectedStakes ? `[Stakes: ${selectedStakes}]\n` : ''
     stepLabel = `Board cards${pendingCards.length > 0 ? ` — ${pendingCards.length} selected` : ''}`
     stepContent = (
       <>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.5rem' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Stakes</span>
+          {STAKES_PRESETS.map((s) => (
+            <button
+              key={s}
+              className={selectedStakes === s ? 'btn-primary' : 'btn-secondary'}
+              style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
+              onClick={() => setSelectedStakes((prev) => (prev === s ? null : s))}
+            >
+              {s}
+            </button>
+          ))}
+          {selectedStakes && (
+            <button
+              className="btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
+              onClick={() => setSelectedStakes(null)}
+            >
+              None
+            </button>
+          )}
+        </div>
         <CardGrid
           usedCards={new Set()}
           selected={pendingCards}
@@ -222,10 +228,10 @@ export default function HandEditor({ initialRaw, onSave, onCancel }: Props) {
         />
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
           {pendingCards.length === 0 && (
-            <button className="btn-secondary" onClick={() => commit('Board:\nHero: ')}>No board</button>
+            <button className="btn-secondary" onClick={() => commit(stakesPrefix + 'Board:\nHero: ')}>No board</button>
           )}
           {pendingCards.length > 0 && (
-            <button className="btn-primary" disabled={!validCount} onClick={() => commit('Board: ' + pendingCards.join(' ') + '\nHero: ')}>
+            <button className="btn-primary" disabled={!validCount} onClick={() => commit(stakesPrefix + 'Board: ' + pendingCards.join(' ') + '\nHero: ')}>
               Done ({pendingCards.length})
             </button>
           )}

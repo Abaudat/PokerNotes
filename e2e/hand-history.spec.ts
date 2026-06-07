@@ -70,7 +70,6 @@ test.describe('history with two hands', () => {
     await page.getByRole('button', { name: '← History' }).click()
     // Second hand (newer): CO, A♠ K♠
     await page.getByRole('button', { name: '+ New hand' }).click()
-    await page.getByRole('button', { name: 'Skip' }).click()
     await page.getByRole('button', { name: 'No board' }).click()
     await page.getByRole('button', { name: 'CO' }).click()
     await page.getByRole('button', { name: 'A♠' }).click()
