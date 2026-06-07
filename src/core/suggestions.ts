@@ -362,6 +362,7 @@ function analyzeStreetActions(
   streetName: StreetName,
   boardCardCount: number,
   preflopActors: string[],
+  heroPosition?: string | null,
 ): StreetAnalysis {
   const segments = actionsStr.split(',').map((s) => s.trim())
   const hasTrailingComma = segments.length > 0 && segments[segments.length - 1] === ''
@@ -382,8 +383,22 @@ function analyzeStreetActions(
   const actor = parts[0]
 
   if (parts.length === 1) {
-    const facingBet = isLastActionABet(prevComplete)
-    const verbOptions = facingBet ? ['c', 'r', 'f', 'all in'] : ['x', 'b', 'f', 'all in']
+    let facingBet: boolean
+    let verbOptions: string[]
+    if (streetName === 'Preflop') {
+      const resolvedActor = (actor === 'H' && heroPosition) ? heroPosition : actor
+      const hasRaise = isLastActionABet(prevComplete)
+      if (resolvedActor === 'BB' && !hasRaise) {
+        facingBet = false
+        verbOptions = ['x', 'r', 'f', 'all in']
+      } else {
+        facingBet = true
+        verbOptions = ['c', 'r', 'f', 'all in']
+      }
+    } else {
+      facingBet = isLastActionABet(prevComplete)
+      verbOptions = facingBet ? ['c', 'r', 'f', 'all in'] : ['x', 'b', 'f', 'all in']
+    }
     return { mode: 'AWAIT_VERB', options: verbOptions, context: { street: streetName, actor, facingBet } }
   }
 
@@ -463,6 +478,7 @@ export function nextSuggestions(raw: string): SuggestionResult {
   }
 
   const heroTokens = heroContent.trim().split(/\s+/).filter(Boolean)
+  const heroPosition = heroTokens[0] ?? null
   if (heroTokens.length === 0) {
     return { mode: 'AWAIT_HERO_POS', options: HERO_POSITIONS }
   }
@@ -506,6 +522,7 @@ export function nextSuggestions(raw: string): SuggestionResult {
     lastStreet.name,
     boardCardCount,
     activePool,
+    heroPosition,
   )
   return { mode, options, context }
 }

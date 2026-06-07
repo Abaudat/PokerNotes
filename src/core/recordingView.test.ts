@@ -279,9 +279,9 @@ describe('action verb chip — all in (two words) without amount', () => {
 // ---------------------------------------------------------------------------
 
 describe('facingBet meta', () => {
-  it('is false for first actor in a street', () => {
+  it('is true for non-BB preflop first actor (implicit BB bet)', () => {
     const raw = 'Board: As 8h Td\nHero: BTN AhKs\nPreflop: H x'
-    expect(chipById(raw, 'action:Preflop:0:verb')?.meta?.facingBet).toBe(false)
+    expect(chipById(raw, 'action:Preflop:0:verb')?.meta?.facingBet).toBe(true)
   })
 
   it('is true when prior action was a bet', () => {
@@ -294,9 +294,26 @@ describe('facingBet meta', () => {
     expect(chipById(raw, 'action:Preflop:1:verb')?.meta?.facingBet).toBe(true)
   })
 
-  it('is false when prior action was check', () => {
+  it('is true for non-BB after BB check (still facing implicit BB)', () => {
     const raw = 'Board: As 8h Td\nHero: BTN AhKs\nPreflop: BB x, H x'
-    expect(chipById(raw, 'action:Preflop:1:verb')?.meta?.facingBet).toBe(false)
+    expect(chipById(raw, 'action:Preflop:1:verb')?.meta?.facingBet).toBe(true)
+  })
+
+  it('is false and bbOption true for BB preflop with no prior raise', () => {
+    const raw = 'Board: As 8h Td\nHero: BTN AhKs\nPreflop: BB x'
+    const chip = chipById(raw, 'action:Preflop:0:verb')
+    expect(chip?.meta?.facingBet).toBe(false)
+    expect(chip?.meta?.bbOption).toBe(true)
+  })
+
+  it('is true for BB preflop after a raise', () => {
+    const raw = 'Board: As 8h Td\nHero: BTN AhKs\nPreflop: UTG r 15, BB c'
+    expect(chipById(raw, 'action:Preflop:1:verb')?.meta?.facingBet).toBe(true)
+  })
+
+  it('is false for first actor on postflop (no prior bet)', () => {
+    const raw = 'Board: As 8h Td\nHero: BTN AhKs\nPreflop: H r 40, BB c\nFlop: BB x'
+    expect(chipById(raw, 'action:Flop:0:verb')?.meta?.facingBet).toBe(false)
   })
 })
 

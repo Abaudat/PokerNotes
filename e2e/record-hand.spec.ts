@@ -95,7 +95,7 @@ test('Saving a hand navigates to the hand detail view', async ({ page }) => {
   await page.getByRole('button', { name: 'K♠' }).click()
   await page.getByRole('button', { name: /Done/ }).click()
   await page.getByRole('button', { name: 'H', exact: true }).click()
-  await page.getByRole('button', { name: 'Check' }).click()
+  await page.getByRole('button', { name: 'Call' }).click()
   await page.getByRole('button', { name: 'Save hand' }).click()
   await expect(page.getByRole('button', { name: '← History' })).toBeVisible()
 })
@@ -109,7 +109,7 @@ test('new hand inherits stakes from the most recently saved hand', async ({ page
   await page.getByRole('button', { name: 'K♠' }).click()
   await page.getByRole('button', { name: /Done/ }).click()
   await page.getByRole('button', { name: 'H', exact: true }).click()
-  await page.getByRole('button', { name: 'Check' }).click()
+  await page.getByRole('button', { name: 'Call' }).click()
   await page.getByRole('button', { name: 'Save hand' }).click()
   await page.getByRole('button', { name: '← History' }).click()
   // Start second hand without touching stakes
@@ -120,7 +120,7 @@ test('new hand inherits stakes from the most recently saved hand', async ({ page
   await page.getByRole('button', { name: 'Q♥' }).click()
   await page.getByRole('button', { name: /Done/ }).click()
   await page.getByRole('button', { name: 'H', exact: true }).click()
-  await page.getByRole('button', { name: 'Check' }).click()
+  await page.getByRole('button', { name: 'Call' }).click()
   await page.getByRole('button', { name: 'Save hand' }).click()
   await page.getByRole('button', { name: '← History' }).click()
   // Both hands should show 2/5 NLH

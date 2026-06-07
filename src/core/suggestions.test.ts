@@ -284,31 +284,60 @@ describe('multi-street fold tracking', () => {
 // ---------------------------------------------------------------------------
 
 describe('AWAIT_VERB — not facing a bet', () => {
-  it('actor present without verb at start of street', () => {
-    const r = nextSuggestions(`${BASE}\nPreflop: H`)
-    expect(r.mode).toBe('AWAIT_VERB')
-    expect(r.context?.facingBet).toBe(false)
-  })
-
-  it('offers check / bet / fold when not facing a bet', () => {
-    const r = nextSuggestions(`${BASE}\nPreflop: H`)
-    expect(r.options).toContain('x')
-    expect(r.options).toContain('b')
-    expect(r.options).toContain('f')
-  })
-
-  it('does NOT offer call or raise when not facing a bet', () => {
-    const r = nextSuggestions(`${BASE}\nPreflop: H`)
-    expect(r.options).not.toContain('c')
-    expect(r.options).not.toContain('r')
-  })
-
   it('not facing a bet after a check on a later street', () => {
     const r = nextSuggestions(`${BASE}\nPreflop: H r 40, CO c\nFlop: CO x, H`)
     expect(r.mode).toBe('AWAIT_VERB')
     expect(r.context?.facingBet).toBe(false)
     expect(r.options).toContain('x')
     expect(r.options).toContain('b')
+  })
+})
+
+describe('AWAIT_VERB — preflop implicit BB bet', () => {
+  it('non-BB actor preflop has facingBet true', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: H`)
+    expect(r.mode).toBe('AWAIT_VERB')
+    expect(r.context?.facingBet).toBe(true)
+  })
+
+  it('non-BB preflop: offers call / raise / fold', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: H`)
+    expect(r.options).toContain('c')
+    expect(r.options).toContain('r')
+    expect(r.options).toContain('f')
+  })
+
+  it('non-BB preflop: does NOT offer check or bet', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: H`)
+    expect(r.options).not.toContain('x')
+    expect(r.options).not.toContain('b')
+  })
+
+  it('BB preflop with no raise: facingBet false, can check', () => {
+    const r = nextSuggestions('Board: As 8h Td\nHero: BTN AhKs\nPreflop: UTG c, CO c, BB')
+    expect(r.mode).toBe('AWAIT_VERB')
+    expect(r.context?.facingBet).toBe(false)
+    expect(r.options).toContain('x')
+    expect(r.options).toContain('r')
+    expect(r.options).not.toContain('c')
+    expect(r.options).not.toContain('b')
+  })
+
+  it('BB preflop after a raise: facingBet true, must call or re-raise', () => {
+    const r = nextSuggestions('Board: As 8h Td\nHero: BTN AhKs\nPreflop: UTG r 15, CO c, BB')
+    expect(r.mode).toBe('AWAIT_VERB')
+    expect(r.context?.facingBet).toBe(true)
+    expect(r.options).toContain('c')
+    expect(r.options).toContain('r')
+    expect(r.options).not.toContain('x')
+  })
+
+  it('hero at BB preflop with no raise: facingBet false', () => {
+    const r = nextSuggestions('Board: As 8h Td\nHero: BB AhKs\nPreflop: UTG c, CO c, H')
+    expect(r.mode).toBe('AWAIT_VERB')
+    expect(r.context?.facingBet).toBe(false)
+    expect(r.options).toContain('x')
+    expect(r.options).not.toContain('b')
   })
 })
 

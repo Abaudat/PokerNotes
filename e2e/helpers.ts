@@ -29,7 +29,7 @@ export async function getTestUserUid(): Promise<string> {
 }
 
 /**
- * Records a minimal hand: no stakes, no board, BTN position, A♥ K♠, Hero checks preflop.
+ * Records a minimal hand: no stakes, no board, BTN position, A♥ K♠, Hero calls preflop.
  * Ends on the hand detail view (← History button visible).
  */
 export async function recordMinimalHand(page: Page): Promise<void> {
@@ -40,13 +40,13 @@ export async function recordMinimalHand(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'K♠' }).click()
   await page.getByRole('button', { name: /Done/ }).click()
   await page.getByRole('button', { name: 'H', exact: true }).click()
-  await page.getByRole('button', { name: 'Check' }).click()
+  await page.getByRole('button', { name: 'Call' }).click()
   await page.getByRole('button', { name: 'Save hand' }).click()
   await page.waitForSelector('button:has-text("← History")')
 }
 
 /**
- * Records a hand with 1/2 stakes: no board, BTN position, A♥ K♠, Hero checks preflop.
+ * Records a hand with 1/2 stakes: no board, BTN position, A♥ K♠, Hero calls preflop.
  * Ends on the hand detail view.
  */
 export async function recordHandWithStakes(page: Page): Promise<void> {
@@ -58,7 +58,7 @@ export async function recordHandWithStakes(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'K♠' }).click()
   await page.getByRole('button', { name: /Done/ }).click()
   await page.getByRole('button', { name: 'H', exact: true }).click()
-  await page.getByRole('button', { name: 'Check' }).click()
+  await page.getByRole('button', { name: 'Call' }).click()
   await page.getByRole('button', { name: 'Save hand' }).click()
   await page.waitForSelector('button:has-text("← History")')
 }
@@ -79,7 +79,7 @@ export async function recordRichHand(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'K♥' }).click()
   await page.getByRole('button', { name: /Done/ }).click()
   await page.getByRole('button', { name: 'H', exact: true }).click()
-  await page.getByRole('button', { name: 'Bet' }).click()
+  await page.getByRole('button', { name: 'Raise' }).click()
   await page.locator('input[type="number"]').fill('20')
   await page.getByRole('button', { name: 'OK' }).click()
   await page.getByRole('button', { name: 'Save hand' }).click()

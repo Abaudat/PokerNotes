@@ -38,7 +38,7 @@ test('View shows a preflop action\'s actor name', async ({ page }) => {
 
 // Test 33
 test('View shows a preflop action\'s verb', async ({ page }) => {
-  await expect(page.getByText('bets')).toBeVisible()
+  await expect(page.getByText('raises')).toBeVisible()
 })
 
 // Test 34
