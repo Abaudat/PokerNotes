@@ -13,7 +13,7 @@ async function recordPreflopWithBoard(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: 'K♥', exact: true }).click()
   await page.getByRole('button', { name: /Done/ }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'H', exact: true }).click()
-  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Check' }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Call' }).click()
 }
 
 test.beforeEach(async ({ page }) => {

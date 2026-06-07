@@ -489,8 +489,13 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
         )
       }
     } else if (step === 'verb') {
+      const bbOption = chip.meta?.bbOption ?? false
       const facingBet = chip.meta?.facingBet ?? false
-      const verbOptions = facingBet ? ['c', 'r', 'f', 'all in'] : ['x', 'b', 'f', 'all in']
+      const verbOptions = bbOption
+        ? ['x', 'r', 'f', 'all in']
+        : facingBet
+          ? ['c', 'r', 'f', 'all in']
+          : ['x', 'b', 'f', 'all in']
       editContent = (
         <div>
           {editHeader}

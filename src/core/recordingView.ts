@@ -35,6 +35,7 @@ export interface ChipMeta {
   verb?: string
   amount?: number
   facingBet?: boolean
+  bbOption?: boolean
   street?: string
   actor?: string
   note?: string
@@ -202,6 +203,7 @@ function tokenizeStreetLine(
   line: string,
   lineStart: number,
   streetName: string,
+  heroPosition?: string | null,
 ): Chip[] {
   const colonIdx = line.indexOf(':')
   if (colonIdx === -1) return []
@@ -242,7 +244,20 @@ function tokenizeStreetLine(
         .slice(0, actionIdx)
         .map((s) => s.trim())
         .filter(Boolean)
-      const facingBet = isLastActionABet(priorSegments)
+      let facingBet: boolean
+      let bbOption = false
+      if (streetName === 'Preflop') {
+        const resolvedActor = (actorStr === 'H' && heroPosition) ? heroPosition : actorStr
+        const hasRaise = isLastActionABet(priorSegments)
+        if (resolvedActor === 'BB' && !hasRaise) {
+          facingBet = false
+          bbOption = true
+        } else {
+          facingBet = true
+        }
+      } else {
+        facingBet = isLastActionABet(priorSegments)
+      }
 
       // Verb: handle "all in" two-word
       let verbInternal: string
@@ -310,7 +325,7 @@ function tokenizeStreetLine(
         text: verbText,
         span: { start: verbAbsStart2, end: verbAbsEnd },
         editKind: 'verb',
-        meta: { verb: verbInternal, amount, facingBet, street: streetName, actor: actorStr },
+        meta: { verb: verbInternal, amount, facingBet, bbOption, street: streetName, actor: actorStr },
       })
     }
 
@@ -410,6 +425,7 @@ export function buildRecordingView(raw: string): ChipLine[] {
 
   const lines = buildLineTable(raw)
   let noteIdx = 0
+  let heroPosition: string | null = null
 
   for (const { text, start } of lines) {
     const trimmed = text.trim()
@@ -468,6 +484,8 @@ export function buildRecordingView(raw: string): ChipLine[] {
         result.push({ key: 'board', chips: allChips })
       }
     } else if (trimmed.startsWith('Hero:')) {
+      const heroAfterColon = trimmed.slice('Hero:'.length).trim()
+      heroPosition = heroAfterColon.split(/\s+/)[0] || null
       const chips = tokenizeHeroLine(text, start)
       if (chips.length > 0) {
         result.push({ key: 'hero', chips })
@@ -482,7 +500,7 @@ export function buildRecordingView(raw: string): ChipLine[] {
       const streetMatch = /^(Preflop|Flop|Turn|River):/.exec(trimmed)
       if (streetMatch) {
         const streetName = streetMatch[1]
-        const chips = tokenizeStreetLine(text, start, streetName)
+        const chips = tokenizeStreetLine(text, start, streetName, heroPosition)
         if (chips.length > 0) {
           result.push({ key: `street:${streetName}`, chips })
         }
