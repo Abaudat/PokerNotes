@@ -5,6 +5,9 @@ import type { SuggestionResult, SuggestionMode, SuggestionContext, StreetName } 
 // Constants
 // ---------------------------------------------------------------------------
 
+const POSITION_ORDER = ['UTG', 'UTG+1', 'UTG+2', 'UTG+3', 'HJ', 'CO', 'BTN', 'SB', 'BB']
+const GENERIC_POSITIONS = ['H', 'V', 'V2', 'V3']
+
 const ALL_POSITIONS = [
   'H', 'V', 'V2', 'V3', 'UTG', 'UTG+1', 'UTG+2', 'UTG+3',
   'HJ', 'CO', 'BTN', 'SB', 'BB', 'EP', 'MP',
@@ -21,6 +24,8 @@ const STREET_ORDER: StreetName[] = ['Preflop', 'Flop', 'Turn', 'River']
 const AMOUNT_VERBS = new Set(['r', 'b'])
 /** Verbs with an optional amount (all-in). Internal code 'a'; raw text 'all in'. */
 const OPTIONAL_AMOUNT_VERBS = new Set(['a'])
+/** Verbs that re-open the action — everyone else gets another turn */
+const REOPENING_VERBS = new Set(['r', 'b', 'a'])
 const SHOWDOWN_VERBS_LIST = ['shows', 'wins', 'loses']
 
 // ---------------------------------------------------------------------------
@@ -60,6 +65,204 @@ export function collectCardCodes(text: string): Set<string> {
     i += 2
   }
   return used
+}
+
+// ---------------------------------------------------------------------------
+// Helpers — position ordering and filtering
+// ---------------------------------------------------------------------------
+
+function sortPositions(positions: string[]): string[] {
+  const posSet = new Set(positions)
+  const generics = GENERIC_POSITIONS.filter((p) => posSet.has(p))
+  const ordered = POSITION_ORDER.filter((p) => posSet.has(p))
+  const others = positions.filter((p) => !GENERIC_POSITIONS.includes(p) && !POSITION_ORDER.includes(p))
+  return [...generics, ...ordered, ...others]
+}
+
+function getActorsFromSegments(segments: string[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const seg of segments) {
+    const parts = seg.split(/\s+/).filter(Boolean)
+    if (parts.length > 0 && !seen.has(parts[0])) {
+      seen.add(parts[0])
+      result.push(parts[0])
+    }
+  }
+  return result
+}
+
+function getLastActorFromSegments(segments: string[]): string | null {
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const parts = segments[i].split(/\s+/).filter(Boolean)
+    if (parts.length > 0) return parts[0]
+  }
+  return null
+}
+
+function buildActorOptions(streetName: StreetName, completedSegments: string[], preflopActors: string[]): string[] {
+  // Find the last re-opening action (bet/raise/all-in) by scanning backwards.
+  // Everything after it is the "current response round"; earlier segments precede the re-open.
+  let lastReopenIdx = -1
+  for (let i = completedSegments.length - 1; i >= 0; i--) {
+    const parts = completedSegments[i].split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) {
+      const { verbInternal } = extractVerb(parts.slice(1))
+      if (REOPENING_VERBS.has(verbInternal)) { lastReopenIdx = i; break }
+    }
+  }
+
+  if (lastReopenIdx !== -1) {
+    const reopener = completedSegments[lastReopenIdx].split(/\s+/).filter(Boolean)[0]
+    const beforeReopen = getActorsFromSegments(completedSegments.slice(0, lastReopenIdx))
+    const afterReopen = new Set(getActorsFromSegments(completedSegments.slice(lastReopenIdx + 1)))
+    return buildReopenOptions(streetName, reopener, beforeReopen, afterReopen, preflopActors)
+  }
+
+  // No bet/raise on this street yet — linear progression.
+  const spokenSet = new Set(getActorsFromSegments(completedSegments))
+  const lastActor = getLastActorFromSegments(completedSegments)
+
+  if (streetName === 'Preflop') {
+    const generics = GENERIC_POSITIONS.filter((p) => !spokenSet.has(p))
+    let maxSpokenIdx = -1
+    for (const seg of completedSegments) {
+      const parts = seg.split(/\s+/).filter(Boolean)
+      if (parts.length > 0) {
+        const idx = POSITION_ORDER.indexOf(parts[0])
+        if (idx > maxSpokenIdx) maxSpokenIdx = idx
+      }
+    }
+    const ordered = maxSpokenIdx === -1
+      ? POSITION_ORDER.filter((p) => !spokenSet.has(p))
+      : POSITION_ORDER.slice(maxSpokenIdx + 1)
+    return [...generics, ...ordered]
+  }
+
+  // Postflop linear
+  if (!lastActor) return sortPositions(preflopActors)
+  const lastIdx = POSITION_ORDER.indexOf(lastActor)
+  return sortPositions(preflopActors.filter((p) => {
+    if (spokenSet.has(p)) return false
+    const pIdx = POSITION_ORDER.indexOf(p)
+    if (lastIdx === -1 || pIdx === -1) return true
+    return pIdx > lastIdx
+  }))
+}
+
+/**
+ * After a re-open (bet/raise/all-in), build the response-order list and apply a
+ * "skip = folded" frontier: if actor X (at response-order index I) has replied,
+ * all positions at indices < I who have NOT replied are considered to have folded.
+ * Suggest only positions at indices > the frontier that haven't replied.
+ */
+function buildReopenOptions(
+  streetName: StreetName,
+  reopener: string,
+  spokenBefore: string[],   // unique actors who spoke before the re-open
+  spokenAfter: Set<string>, // actors who have spoken in response to the re-open
+  preflopActors: string[],
+): string[] {
+  const reopenerIdx = POSITION_ORDER.indexOf(reopener)
+  const beforeSet = new Set(spokenBefore)
+
+  let responseOrder: string[]
+
+  if (streetName === 'Preflop') {
+    // First timers: ordered positions after the re-opener (haven't been in the hand yet)
+    const orderedFirst = reopenerIdx === -1
+      ? POSITION_ORDER.filter((p) => !beforeSet.has(p))
+      : POSITION_ORDER.slice(reopenerIdx + 1)
+    // Second timers: everyone who spoke before the re-open (excluding the re-opener)
+    const orderedSecond = POSITION_ORDER.filter((p) => beforeSet.has(p) && p !== reopener)
+    const genFirst = GENERIC_POSITIONS.filter((p) => !beforeSet.has(p) && p !== reopener)
+    const genSecond = GENERIC_POSITIONS.filter((p) => beforeSet.has(p) && p !== reopener)
+    responseOrder = [...genFirst, ...orderedFirst, ...genSecond, ...orderedSecond]
+  } else {
+    // Postflop: restrict to preflop actors
+    const orderedFirst = preflopActors.filter((p) => {
+      if (p === reopener) return false
+      const pIdx = POSITION_ORDER.indexOf(p)
+      if (reopenerIdx === -1 || pIdx === -1) return !beforeSet.has(p)
+      return pIdx > reopenerIdx
+    })
+    const orderedSecond = preflopActors.filter((p) => p !== reopener && beforeSet.has(p))
+    responseOrder = [...sortPositions(orderedFirst), ...sortPositions(orderedSecond)]
+  }
+
+  // Find the latest position in responseOrder that has replied after the re-open.
+  // All positions before it that have NOT replied are considered skipped (folded).
+  let frontierIdx = -1
+  for (let i = responseOrder.length - 1; i >= 0; i--) {
+    if (spokenAfter.has(responseOrder[i])) { frontierIdx = i; break }
+  }
+
+  return frontierIdx === -1 ? responseOrder : responseOrder.slice(frontierIdx + 1)
+}
+
+/**
+ * Given a completed street actionsStr and the pool of actors who were active
+ * entering that street, return the subset still active after it — removing
+ * explicit folders (verb 'f') and implicit folders (actors in the re-open
+ * response order who were bypassed or never responded before the street ended).
+ */
+function computeActiveActors(actionsStr: string, pool: string[]): string[] {
+  const segments = actionsStr.split(',').map((s) => s.trim()).filter((s) => s !== '')
+
+  const explicitFolders = new Set<string>()
+  for (const seg of segments) {
+    const parts = seg.split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) {
+      const { verbInternal } = extractVerb(parts.slice(1))
+      if (verbInternal === 'f') explicitFolders.add(parts[0])
+    }
+  }
+
+  let lastReopenIdx = -1
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const parts = segments[i].split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) {
+      const { verbInternal } = extractVerb(parts.slice(1))
+      if (REOPENING_VERBS.has(verbInternal)) { lastReopenIdx = i; break }
+    }
+  }
+
+  if (lastReopenIdx === -1) {
+    return pool.filter((a) => !explicitFolders.has(a))
+  }
+
+  const reopener = segments[lastReopenIdx].split(/\s+/).filter(Boolean)[0]
+  const reopenerIdx = POSITION_ORDER.indexOf(reopener)
+  const beforeSet = new Set(getActorsFromSegments(segments.slice(0, lastReopenIdx)))
+  const spokenAfterSet = new Set(getActorsFromSegments(segments.slice(lastReopenIdx + 1)))
+
+  const firstTimers = pool.filter((p) => {
+    if (p === reopener) return false
+    const pIdx = POSITION_ORDER.indexOf(p)
+    if (reopenerIdx === -1 || pIdx === -1) return !beforeSet.has(p)
+    return pIdx > reopenerIdx
+  })
+  const secondTimers = pool.filter((p) => p !== reopener && beforeSet.has(p))
+  const responseOrder = [...sortPositions(firstTimers), ...sortPositions(secondTimers)]
+
+  const implicitFolders = new Set(responseOrder.filter((p) => !spokenAfterSet.has(p)))
+
+  return pool.filter((a) => !explicitFolders.has(a) && !implicitFolders.has(a))
+}
+
+/**
+ * From a completed preflop actionsStr, return the actors still active going
+ * into postflop. The pool is derived from who appeared in preflop itself.
+ */
+function computePostflopActors(actionsStr: string): string[] {
+  const segments = actionsStr.split(',').map((s) => s.trim()).filter((s) => s !== '')
+  const seen = new Set<string>()
+  const pool: string[] = []
+  for (const seg of segments) {
+    const parts = seg.split(/\s+/).filter(Boolean)
+    if (parts.length >= 2 && !seen.has(parts[0])) { seen.add(parts[0]); pool.push(parts[0]) }
+  }
+  return computeActiveActors(actionsStr, pool)
 }
 
 // ---------------------------------------------------------------------------
@@ -123,12 +326,12 @@ function extractVerb(parts: string[]): VerbResult {
 // ---------------------------------------------------------------------------
 
 export function isLastActionABet(completeSegments: string[]): boolean {
-  if (completeSegments.length === 0) return false
-  const last = completeSegments[completeSegments.length - 1].trim()
-  const parts = last.split(/\s+/).filter(Boolean)
-  if (parts.length < 2) return false
-  const { verbInternal } = extractVerb(parts.slice(1))
-  return AMOUNT_VERBS.has(verbInternal) || OPTIONAL_AMOUNT_VERBS.has(verbInternal)
+  return completeSegments.some((seg) => {
+    const parts = seg.trim().split(/\s+/).filter(Boolean)
+    if (parts.length < 2) return false
+    const { verbInternal } = extractVerb(parts.slice(1))
+    return AMOUNT_VERBS.has(verbInternal) || OPTIONAL_AMOUNT_VERBS.has(verbInternal)
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -158,13 +361,14 @@ function analyzeStreetActions(
   actionsStr: string,
   streetName: StreetName,
   boardCardCount: number,
+  preflopActors: string[],
 ): StreetAnalysis {
   const segments = actionsStr.split(',').map((s) => s.trim())
   const hasTrailingComma = segments.length > 0 && segments[segments.length - 1] === ''
   const nonEmpty = segments.filter((s) => s !== '')
 
   if (nonEmpty.length === 0) {
-    return { mode: 'AWAIT_ACTOR', options: ALL_POSITIONS, context: { street: streetName } }
+    return { mode: 'AWAIT_ACTOR', options: buildActorOptions(streetName, [], preflopActors), context: { street: streetName } }
   }
 
   const lastSeg = nonEmpty[nonEmpty.length - 1]
@@ -172,7 +376,7 @@ function analyzeStreetActions(
   const parts = lastSeg.split(/\s+/).filter(Boolean)
 
   if (parts.length === 0) {
-    return { mode: 'AWAIT_ACTOR', options: ALL_POSITIONS, context: { street: streetName } }
+    return { mode: 'AWAIT_ACTOR', options: buildActorOptions(streetName, prevComplete, preflopActors), context: { street: streetName } }
   }
 
   const actor = parts[0]
@@ -197,7 +401,7 @@ function analyzeStreetActions(
   const canAdvance = canAdvanceToNextStreet(streetName, boardCardCount)
   return {
     mode: 'AWAIT_ACTOR',
-    options: ALL_POSITIONS,
+    options: buildActorOptions(streetName, nonEmpty, preflopActors),
     context: { street: streetName, canAdvance, canSave: true, canShowdown: true },
   }
 }
@@ -282,7 +486,18 @@ export function nextSuggestions(raw: string): SuggestionResult {
   }
 
   if (streets.length === 0) {
-    return { mode: 'AWAIT_ACTOR', options: ALL_POSITIONS, context: { street: 'Preflop' } }
+    return { mode: 'AWAIT_ACTOR', options: buildActorOptions('Preflop', [], []), context: { street: 'Preflop' } }
+  }
+
+  const preflopStreet = streets.find((s) => s.name === 'Preflop')
+  let activePool = preflopStreet ? computePostflopActors(preflopStreet.actionsStr) : []
+
+  // Reduce the pool through each completed postflop street (all streets except the last)
+  const completedStreets = streets.slice(0, -1)
+  for (const street of completedStreets) {
+    if (street.name !== 'Preflop') {
+      activePool = computeActiveActors(street.actionsStr, activePool)
+    }
   }
 
   const lastStreet = streets[streets.length - 1]
@@ -290,6 +505,7 @@ export function nextSuggestions(raw: string): SuggestionResult {
     lastStreet.actionsStr,
     lastStreet.name,
     boardCardCount,
+    activePool,
   )
   return { mode, options, context }
 }

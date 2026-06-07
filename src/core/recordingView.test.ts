@@ -475,7 +475,7 @@ describe('isLastActionABet', () => {
     expect(isLastActionABet(['BB f'])).toBe(false)
   })
 
-  it('looks only at last segment', () => {
-    expect(isLastActionABet(['BB b 20', 'H c'])).toBe(false)
+  it('returns true when any earlier segment was a bet, even if last was a call', () => {
+    expect(isLastActionABet(['BB b 20', 'H c'])).toBe(true)
   })
 })
