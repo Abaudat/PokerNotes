@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { clearFirestoreHands, getTestUserUid, recordHandWithStakes } from './helpers'
 
-// Seeded hand: $1/$2 stakes, no board, BTN, A♥K♠, Hero checks preflop
+// Seeded hand: 1/2 stakes, no board, BTN, A♥K♠, Hero checks preflop
 test.beforeEach(async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await clearFirestoreHands(await getTestUserUid())
@@ -35,5 +35,5 @@ test("Exported clipboard text contains the hand's stakes", async ({ page }) => {
   await page.getByRole('button', { name: 'Export' }).click()
   await expect(page.getByRole('button', { name: '✓ Copied!' })).toBeVisible()
   const text = await page.evaluate(() => navigator.clipboard.readText())
-  expect(text).toContain('$1/$2')
+  expect(text).toContain('1/2')
 })

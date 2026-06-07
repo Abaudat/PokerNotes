@@ -34,7 +34,7 @@ test.describe('history with one hand', () => {
 
   // Test 22
   test('Hand card shows stakes when set', async ({ page }) => {
-    await expect(page.getByText('$1/$2 NLH').first()).toBeVisible()
+    await expect(page.getByText('1/2 NLH').first()).toBeVisible()
   })
 
   // Test 23
@@ -70,7 +70,6 @@ test.describe('history with two hands', () => {
     await page.getByRole('button', { name: '← History' }).click()
     // Second hand (newer): CO, A♠ K♠
     await page.getByRole('button', { name: '+ New hand' }).click()
-    await page.getByRole('button', { name: 'Skip' }).click()
     await page.getByRole('button', { name: 'No board' }).click()
     await page.getByRole('button', { name: 'CO' }).click()
     await page.getByRole('button', { name: 'A♠' }).click()

@@ -158,6 +158,7 @@ export default function App() {
       {view.kind === 'editor' && (
         <HandEditor
           initialRaw={view.initialRaw}
+          defaultStakes={view.handId ? undefined : hands[0]?.summary.stakes}
           onSave={
             view.handId
               ? (raw, ast) => updateHand(view.handId!, raw, ast)

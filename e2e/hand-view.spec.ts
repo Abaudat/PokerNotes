@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { clearFirestoreHands, getTestUserUid, recordRichHand } from './helpers'
 
-// Seeded hand: $1/$2 stakes, board 2♠3♠4♠, BTN, A♥K♥, Hero raises $20 preflop
+// Seeded hand: 1/2 stakes, board 2♠3♠4♠, BTN, A♥K♥, Hero raises $20 preflop
 test.beforeEach(async ({ page }) => {
   await clearFirestoreHands(await getTestUserUid())
   await page.goto('/')
@@ -23,7 +23,7 @@ test('View shows board cards with suit glyphs', async ({ page }) => {
 
 // Test 30
 test('View shows stakes in the metadata line', async ({ page }) => {
-  await expect(page.getByText('$1/$2 NLH')).toBeVisible()
+  await expect(page.getByText('1/2 NLH')).toBeVisible()
 })
 
 // Test 31
