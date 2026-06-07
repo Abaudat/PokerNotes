@@ -21,7 +21,7 @@ export default defineConfig({
     },
     {
       name: 'auth',
-      use: { ...devices['Desktop Chrome'], storageState: undefined },
+      use: { ...devices['Desktop Chrome'], storageState: { cookies: [], origins: [] } },
       testMatch: ['**/auth.spec.ts'],
     },
   ],
