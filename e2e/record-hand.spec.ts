@@ -8,8 +8,8 @@ test.beforeEach(async ({ page }) => {
 })
 
 // Test 7
-test('Stakes presets ($1/$2, $2/$5, $5/$10, $10/$20) are visible on the board step', async ({ page }) => {
-  for (const s of ['$1/$2', '$2/$5', '$5/$10', '$10/$20']) {
+test('Stakes presets (1/2, 2/5, 5/5, 5/10, 10/20) are visible on the board step', async ({ page }) => {
+  for (const s of ['1/2', '2/5', '5/5', '5/10', '10/20']) {
     await expect(page.getByRole('button', { name: s })).toBeVisible()
   }
   await expect(page.getByRole('button', { name: 'No board' })).toBeVisible()
@@ -17,7 +17,7 @@ test('Stakes presets ($1/$2, $2/$5, $5/$10, $10/$20) are visible on the board st
 
 // Test 8
 test('Clicking a stakes preset selects it without leaving the board step', async ({ page }) => {
-  await page.getByRole('button', { name: '$1/$2' }).click()
+  await page.getByRole('button', { name: '1/2' }).click()
   await expect(page.getByRole('button', { name: 'No board' })).toBeVisible()
 })
 
@@ -101,8 +101,8 @@ test('Saving a hand navigates to the hand detail view', async ({ page }) => {
 })
 
 test('new hand inherits stakes from the most recently saved hand', async ({ page }) => {
-  // Record first hand with $2/$5
-  await page.getByRole('button', { name: '$2/$5' }).click()
+  // Record first hand with 2/5
+  await page.getByRole('button', { name: '2/5' }).click()
   await page.getByRole('button', { name: 'No board' }).click()
   await page.getByRole('button', { name: 'BTN' }).click()
   await page.getByRole('button', { name: 'A♥' }).click()
@@ -123,6 +123,6 @@ test('new hand inherits stakes from the most recently saved hand', async ({ page
   await page.getByRole('button', { name: 'Check' }).click()
   await page.getByRole('button', { name: 'Save hand' }).click()
   await page.getByRole('button', { name: '← History' }).click()
-  // Both hands should show $2/$5 NLH
-  await expect(page.getByText('$2/$5 NLH')).toHaveCount(2)
+  // Both hands should show 2/5 NLH
+  await expect(page.getByText('2/5 NLH')).toHaveCount(2)
 })

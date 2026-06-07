@@ -14,7 +14,7 @@ const VERB_LABELS: Record<string, string> = {
 const SHOWDOWN_VERB_LABELS: Record<string, string> = {
   shows: 'Shows', wins: 'Wins', loses: 'Loses',
 }
-const STAKES_PRESETS = ['$1/$2', '$2/$5', '$5/$10', '$10/$20']
+const STAKES_PRESETS = ['1/2', '2/5', '5/5', '5/10', '10/20']
 
 interface Props {
   initialRaw?: string

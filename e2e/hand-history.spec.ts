@@ -34,7 +34,7 @@ test.describe('history with one hand', () => {
 
   // Test 22
   test('Hand card shows stakes when set', async ({ page }) => {
-    await expect(page.getByText('$1/$2 NLH').first()).toBeVisible()
+    await expect(page.getByText('1/2 NLH').first()).toBeVisible()
   })
 
   // Test 23

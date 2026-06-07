@@ -46,12 +46,12 @@ export async function recordMinimalHand(page: Page): Promise<void> {
 }
 
 /**
- * Records a hand with $1/$2 stakes: no board, BTN position, A♥ K♠, Hero checks preflop.
+ * Records a hand with 1/2 stakes: no board, BTN position, A♥ K♠, Hero checks preflop.
  * Ends on the hand detail view.
  */
 export async function recordHandWithStakes(page: Page): Promise<void> {
   await page.getByRole('button', { name: '+ New hand' }).click()
-  await page.getByRole('button', { name: '$1/$2' }).click()
+  await page.getByRole('button', { name: '1/2' }).click()
   await page.getByRole('button', { name: 'No board' }).click()
   await page.getByRole('button', { name: 'BTN' }).click()
   await page.getByRole('button', { name: 'A♥' }).click()
@@ -64,12 +64,12 @@ export async function recordHandWithStakes(page: Page): Promise<void> {
 }
 
 /**
- * Records a rich hand: $1/$2 stakes, board 2♠ 3♠ 4♠, BTN position, A♥ K♥, Hero raises $20 preflop.
+ * Records a rich hand: 1/2 stakes, board 2♠ 3♠ 4♠, BTN position, A♥ K♥, Hero raises $20 preflop.
  * Ends on the hand detail view.
  */
 export async function recordRichHand(page: Page): Promise<void> {
   await page.getByRole('button', { name: '+ New hand' }).click()
-  await page.getByRole('button', { name: '$1/$2' }).click()
+  await page.getByRole('button', { name: '1/2' }).click()
   await page.getByRole('button', { name: '2♠' }).click()
   await page.getByRole('button', { name: '3♠' }).click()
   await page.getByRole('button', { name: '4♠' }).click()
