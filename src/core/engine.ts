@@ -18,7 +18,16 @@ import type {
 export const POSITION_ORDER: Position[] = [
   'UTG', 'UTG+1', 'UTG+2', 'UTG+3', 'HJ', 'CO', 'BTN', 'SB', 'BB',
 ]
+/** Postflop the blinds act first; the button acts last. */
+export const POSTFLOP_POSITION_ORDER: Position[] = [
+  'SB', 'BB', 'UTG', 'UTG+1', 'UTG+2', 'UTG+3', 'HJ', 'CO', 'BTN',
+]
 export const GENERIC_POSITIONS: Position[] = ['H', 'V', 'V2', 'V3']
+
+/** Seat speaking order for the given street (preflop puts blinds last). */
+function orderFor(streetName: StreetName): Position[] {
+  return streetName === 'Preflop' ? POSITION_ORDER : POSTFLOP_POSITION_ORDER
+}
 
 export const ALL_POSITIONS: Position[] = [
   'H', 'V', 'V2', 'V3', 'UTG', 'UTG+1', 'UTG+2', 'UTG+3',
@@ -65,12 +74,12 @@ function uniqueActors(actions: Action[]): Position[] {
   return out
 }
 
-function sortPositions(positions: Position[]): Position[] {
+function sortPositions(positions: Position[], order: Position[] = POSITION_ORDER): Position[] {
   const set = new Set(positions)
   const generics = GENERIC_POSITIONS.filter((p) => set.has(p))
-  const ordered = POSITION_ORDER.filter((p) => set.has(p))
+  const ordered = order.filter((p) => set.has(p))
   const others = positions.filter(
-    (p) => !GENERIC_POSITIONS.includes(p) && !POSITION_ORDER.includes(p),
+    (p) => !GENERIC_POSITIONS.includes(p) && !order.includes(p),
   )
   return [...generics, ...ordered, ...others]
 }
@@ -97,7 +106,8 @@ function buildReopenOptions(
   spokenAfter: Set<Position>,
   preflopActors: Position[],
 ): Position[] {
-  const reopenerIdx = POSITION_ORDER.indexOf(reopener)
+  const order = orderFor(streetName)
+  const reopenerIdx = order.indexOf(reopener)
   const beforeSet = new Set(spokenBefore)
 
   let responseOrder: Position[]
@@ -105,21 +115,21 @@ function buildReopenOptions(
   if (streetName === 'Preflop') {
     const orderedFirst =
       reopenerIdx === -1
-        ? POSITION_ORDER.filter((p) => !beforeSet.has(p))
-        : POSITION_ORDER.slice(reopenerIdx + 1)
-    const orderedSecond = POSITION_ORDER.filter((p) => beforeSet.has(p) && p !== reopener)
+        ? order.filter((p) => !beforeSet.has(p))
+        : order.slice(reopenerIdx + 1)
+    const orderedSecond = order.filter((p) => beforeSet.has(p) && p !== reopener)
     const genFirst = GENERIC_POSITIONS.filter((p) => !beforeSet.has(p) && p !== reopener)
     const genSecond = GENERIC_POSITIONS.filter((p) => beforeSet.has(p) && p !== reopener)
     responseOrder = [...genFirst, ...orderedFirst, ...genSecond, ...orderedSecond]
   } else {
     const orderedFirst = preflopActors.filter((p) => {
       if (p === reopener) return false
-      const pIdx = POSITION_ORDER.indexOf(p)
+      const pIdx = order.indexOf(p)
       if (reopenerIdx === -1 || pIdx === -1) return !beforeSet.has(p)
       return pIdx > reopenerIdx
     })
     const orderedSecond = preflopActors.filter((p) => p !== reopener && beforeSet.has(p))
-    responseOrder = [...sortPositions(orderedFirst), ...sortPositions(orderedSecond)]
+    responseOrder = [...sortPositions(orderedFirst, order), ...sortPositions(orderedSecond, order)]
   }
 
   let frontierIdx = -1
@@ -142,6 +152,7 @@ export function legalActorsToAct(
   completed: Action[],
   preflopActors: Position[],
 ): Position[] {
+  const order = orderFor(streetName)
   let lastReopenIdx = -1
   for (let i = completed.length - 1; i >= 0; i--) {
     const v = completed[i].verb
@@ -165,25 +176,26 @@ export function legalActorsToAct(
     const generics = GENERIC_POSITIONS.filter((p) => !spokenSet.has(p))
     let maxSpokenIdx = -1
     for (const a of completed) {
-      const idx = POSITION_ORDER.indexOf(a.actor)
+      const idx = order.indexOf(a.actor)
       if (idx > maxSpokenIdx) maxSpokenIdx = idx
     }
     const ordered =
       maxSpokenIdx === -1
-        ? POSITION_ORDER.filter((p) => !spokenSet.has(p))
-        : POSITION_ORDER.slice(maxSpokenIdx + 1)
+        ? order.filter((p) => !spokenSet.has(p))
+        : order.slice(maxSpokenIdx + 1)
     return [...generics, ...ordered]
   }
 
-  if (!lastActor) return sortPositions(preflopActors)
-  const lastIdx = POSITION_ORDER.indexOf(lastActor)
+  if (!lastActor) return sortPositions(preflopActors, order)
+  const lastIdx = order.indexOf(lastActor)
   return sortPositions(
     preflopActors.filter((p) => {
       if (spokenSet.has(p)) return false
-      const pIdx = POSITION_ORDER.indexOf(p)
+      const pIdx = order.indexOf(p)
       if (lastIdx === -1 || pIdx === -1) return true
       return pIdx > lastIdx
     }),
+    order,
   )
 }
 
@@ -196,7 +208,7 @@ export function legalActorsToAct(
  * subset still active after it — removing explicit folders (verb 'f') and
  * implicit folders (bypassed in the re-open response order).
  */
-function activeAfterStreet(actions: Action[], pool: Position[]): Position[] {
+function activeAfterStreet(actions: Action[], pool: Position[], order: Position[]): Position[] {
   const explicitFolders = new Set<Position>()
   for (const a of actions) if (a.verb === 'f') explicitFolders.add(a.actor)
 
@@ -214,18 +226,18 @@ function activeAfterStreet(actions: Action[], pool: Position[]): Position[] {
   }
 
   const reopener = actions[lastReopenIdx].actor
-  const reopenerIdx = POSITION_ORDER.indexOf(reopener)
+  const reopenerIdx = order.indexOf(reopener)
   const beforeSet = new Set(uniqueActors(actions.slice(0, lastReopenIdx)))
   const spokenAfterSet = new Set(uniqueActors(actions.slice(lastReopenIdx + 1)))
 
   const firstTimers = pool.filter((p) => {
     if (p === reopener) return false
-    const pIdx = POSITION_ORDER.indexOf(p)
+    const pIdx = order.indexOf(p)
     if (reopenerIdx === -1 || pIdx === -1) return !beforeSet.has(p)
     return pIdx > reopenerIdx
   })
   const secondTimers = pool.filter((p) => p !== reopener && beforeSet.has(p))
-  const responseOrder = [...sortPositions(firstTimers), ...sortPositions(secondTimers)]
+  const responseOrder = [...sortPositions(firstTimers, order), ...sortPositions(secondTimers, order)]
   const implicitFolders = new Set(responseOrder.filter((p) => !spokenAfterSet.has(p)))
 
   return pool.filter((a) => !explicitFolders.has(a) && !implicitFolders.has(a))
@@ -234,7 +246,7 @@ function activeAfterStreet(actions: Action[], pool: Position[]): Position[] {
 /** Actors still active going into postflop, derived from preflop actions. */
 function postflopActors(preflopActions: Action[]): Position[] {
   const completed = completeActions(preflopActions)
-  return activeAfterStreet(completed, uniqueActors(completed))
+  return activeAfterStreet(completed, uniqueActors(completed), POSITION_ORDER)
 }
 
 /** The pool of actors active entering the given (last) street index. */
@@ -244,7 +256,7 @@ function activePoolEntering(state: HandState, throughStreetCount: number): Posit
   for (let i = 0; i < throughStreetCount; i++) {
     const s = state.streets[i]
     if (s && s.name !== 'Preflop') {
-      pool = activeAfterStreet(completeActions(s.actions), pool)
+      pool = activeAfterStreet(completeActions(s.actions), pool, POSTFLOP_POSITION_ORDER)
     }
   }
   return pool
@@ -269,7 +281,7 @@ export function foldedActors(state: HandState): Set<Position> {
 
   for (const street of state.streets) {
     if (street.name === 'Preflop') continue
-    const next = activeAfterStreet(completeActions(street.actions), activePool)
+    const next = activeAfterStreet(completeActions(street.actions), activePool, POSTFLOP_POSITION_ORDER)
     const nextSet = new Set(next)
     for (const a of activePool) if (!nextSet.has(a)) folded.add(a)
     activePool = next
@@ -347,7 +359,7 @@ function activePoolAtShowdown(state: HandState): Position[] {
   const preflop = state.streets.find((s) => s.name === 'Preflop')
   let pool = preflop ? postflopActors(preflop.actions) : []
   for (const s of state.streets) {
-    if (s.name !== 'Preflop') pool = activeAfterStreet(completeActions(s.actions), pool)
+    if (s.name !== 'Preflop') pool = activeAfterStreet(completeActions(s.actions), pool, POSTFLOP_POSITION_ORDER)
   }
   return pool
 }
