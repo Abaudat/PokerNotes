@@ -460,14 +460,18 @@ function analyzeShowdown(
   actionsStr: string,
   usedCards: Set<string>,
   foldedActors: Set<string>,
+  activePool: string[],
 ): StreetAnalysis {
   const segments = actionsStr.split(',').map((s) => s.trim())
   const nonEmpty = segments.filter((s) => s !== '')
 
-  // Only players still in the hand may showdown: drop folders and anyone who has
-  // already had a showdown action recorded.
+  // Only players still in the hand may showdown: restrict to survived actors plus
+  // generic H/V (always offered unless they explicitly folded), drop already-shown.
   const shownActors = new Set(getActorsFromSegments(nonEmpty))
-  const actorOptions = ALL_POSITIONS.filter((p) => !foldedActors.has(p) && !shownActors.has(p))
+  const allowedActors = new Set([...activePool, 'H', 'V'])
+  const actorOptions = ALL_POSITIONS.filter(
+    (p) => allowedActors.has(p) && !foldedActors.has(p) && !shownActors.has(p),
+  )
 
   if (nonEmpty.length === 0) {
     return { mode: 'AWAIT_SHOWDOWN_ACTOR', options: actorOptions, context: {} }
@@ -538,7 +542,14 @@ export function nextSuggestions(raw: string): SuggestionResult {
     collectCardCodes(heroCardStr).forEach((c) => allUsed.add(c))
     collectCardCodes(showdownContent).forEach((c) => allUsed.add(c))
     const foldedActors = computeFoldedActors(streets)
-    const { mode, options, context } = analyzeShowdown(showdownContent, allUsed, foldedActors)
+    const preflopForShowdown = streets.find((s) => s.name === 'Preflop')
+    let showdownPool = preflopForShowdown ? computePostflopActors(preflopForShowdown.actionsStr) : []
+    for (const street of streets) {
+      if (street.name !== 'Preflop') {
+        showdownPool = computeActiveActors(street.actionsStr, showdownPool)
+      }
+    }
+    const { mode, options, context } = analyzeShowdown(showdownContent, allUsed, foldedActors, showdownPool)
     return { mode, options, context }
   }
 
