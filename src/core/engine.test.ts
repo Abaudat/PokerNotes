@@ -155,18 +155,30 @@ describe('legalActorsToAct — postflop', () => {
     expect(opts).not.toContain('CO')
   })
 
+  it('suggests the blinds first, in SB > BB > ... order', () => {
+    const opts = legalActorsToAct('Flop', [], ['HJ', 'BTN', 'SB', 'BB'])
+    expect(opts).toEqual(['SB', 'BB', 'HJ', 'BTN'])
+  })
+
   it('suggests only positions after the last actor', () => {
-    const opts = legalActorsToAct('Flop', acts('BTN x'), ['HJ', 'BTN', 'SB'])
-    expect(opts).toContain('SB')
-    expect(opts).not.toContain('HJ')
-    expect(opts).not.toContain('BTN')
+    const opts = legalActorsToAct('Flop', acts('SB x'), ['HJ', 'BTN', 'SB'])
+    expect(opts).toContain('HJ')
+    expect(opts).toContain('BTN')
+    expect(opts).not.toContain('SB')
+  })
+
+  it('after a blind acts, later positions still get to act (no implied folds)', () => {
+    // BB acts first (SB folded preflop); UTG..BTN must still be offered.
+    const opts = legalActorsToAct('Flop', acts('BB x'), ['BB', 'UTG', 'BTN'])
+    expect(opts).toContain('UTG')
+    expect(opts).toContain('BTN')
+    expect(opts).not.toContain('BB')
   })
 
   it('after a raise includes second timers, excludes the raiser', () => {
-    const opts = legalActorsToAct('Flop', acts('HJ x, CO b 30, SB r 100'), ['HJ', 'CO', 'SB'])
+    const opts = legalActorsToAct('Flop', acts('HJ x, CO x, BTN b 30'), ['HJ', 'CO', 'BTN'])
     expect(opts).toContain('HJ')
     expect(opts).toContain('CO')
-    expect(opts).not.toContain('SB')
     expect(opts).not.toContain('BTN')
   })
 })
