@@ -251,6 +251,37 @@ function computeActiveActors(actionsStr: string, pool: string[]): string[] {
 }
 
 /**
+ * Across all played streets, return the set of actors who folded (explicitly via
+ * verb 'f', or implicitly by being bypassed in a re-open response order). Only
+ * actors that were part of the tracked active pool can be marked folded, so
+ * untracked generic villains are never falsely excluded.
+ */
+function computeFoldedActors(streets: { name: StreetName; actionsStr: string }[]): Set<string> {
+  const folded = new Set<string>()
+
+  const preflopStreet = streets.find((s) => s.name === 'Preflop')
+  let activePool: string[] = []
+  if (preflopStreet) {
+    const appearedPre = getActorsFromSegments(
+      preflopStreet.actionsStr.split(',').map((s) => s.trim()).filter((s) => s !== ''),
+    )
+    activePool = computePostflopActors(preflopStreet.actionsStr)
+    const activeSet = new Set(activePool)
+    for (const a of appearedPre) if (!activeSet.has(a)) folded.add(a)
+  }
+
+  for (const street of streets) {
+    if (street.name === 'Preflop') continue
+    const next = computeActiveActors(street.actionsStr, activePool)
+    const nextSet = new Set(next)
+    for (const a of activePool) if (!nextSet.has(a)) folded.add(a)
+    activePool = next
+  }
+
+  return folded
+}
+
+/**
  * From a completed preflop actionsStr, return the actors still active going
  * into postflop. The pool is derived from who appeared in preflop itself.
  */
@@ -425,19 +456,28 @@ function analyzeStreetActions(
 // Showdown analysis
 // ---------------------------------------------------------------------------
 
-function analyzeShowdown(actionsStr: string, usedCards: Set<string>): StreetAnalysis {
+function analyzeShowdown(
+  actionsStr: string,
+  usedCards: Set<string>,
+  foldedActors: Set<string>,
+): StreetAnalysis {
   const segments = actionsStr.split(',').map((s) => s.trim())
   const nonEmpty = segments.filter((s) => s !== '')
 
+  // Only players still in the hand may showdown: drop folders and anyone who has
+  // already had a showdown action recorded.
+  const shownActors = new Set(getActorsFromSegments(nonEmpty))
+  const actorOptions = ALL_POSITIONS.filter((p) => !foldedActors.has(p) && !shownActors.has(p))
+
   if (nonEmpty.length === 0) {
-    return { mode: 'AWAIT_SHOWDOWN_ACTOR', options: ALL_POSITIONS, context: {} }
+    return { mode: 'AWAIT_SHOWDOWN_ACTOR', options: actorOptions, context: {} }
   }
 
   const lastSeg = nonEmpty[nonEmpty.length - 1]
   const parts = lastSeg.split(/\s+/).filter(Boolean)
 
   if (parts.length === 0) {
-    return { mode: 'AWAIT_SHOWDOWN_ACTOR', options: ALL_POSITIONS, context: {} }
+    return { mode: 'AWAIT_SHOWDOWN_ACTOR', options: actorOptions, context: {} }
   }
 
   const actor = parts[0]
@@ -457,7 +497,7 @@ function analyzeShowdown(actionsStr: string, usedCards: Set<string>): StreetAnal
     }
   }
 
-  return { mode: 'AWAIT_SHOWDOWN_ACTOR', options: ALL_POSITIONS, context: { canSave: true } }
+  return { mode: 'AWAIT_SHOWDOWN_ACTOR', options: actorOptions, context: { canSave: true } }
 }
 
 // ---------------------------------------------------------------------------
@@ -497,7 +537,8 @@ export function nextSuggestions(raw: string): SuggestionResult {
     const allUsed = collectCardCodes(boardContent)
     collectCardCodes(heroCardStr).forEach((c) => allUsed.add(c))
     collectCardCodes(showdownContent).forEach((c) => allUsed.add(c))
-    const { mode, options, context } = analyzeShowdown(showdownContent, allUsed)
+    const foldedActors = computeFoldedActors(streets)
+    const { mode, options, context } = analyzeShowdown(showdownContent, allUsed, foldedActors)
     return { mode, options, context }
   }
 
