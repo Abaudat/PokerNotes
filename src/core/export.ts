@@ -1,5 +1,5 @@
 import { SUIT_GLYPHS } from './cards'
-import type { HandAST, Action, Card, Verb, ShowdownAction } from './types'
+import type { HandState, Action, Card, Verb, ShowdownEntry } from './types'
 
 function cardGlyph(card: Card): string {
   return card.rank + SUIT_GLYPHS[card.suit]
@@ -19,55 +19,52 @@ function actorName(actor: string): string {
 }
 
 function formatAction(action: Action): string {
-  const actor = actorName(action.actor.value)
-  const verb = VERB_WORDS[action.verb.value]
+  const actor = actorName(action.actor)
+  const verb = action.verb !== undefined ? VERB_WORDS[action.verb] : ''
   if (action.amount !== undefined) {
-    if (action.verb.value === 'a') {
-      return `${actor} ${verb} ${action.amount.value} eff`
+    if (action.verb === 'a') {
+      return `${actor} ${verb} ${action.amount} eff`
     }
-    return `${actor} ${verb} $${action.amount.value}`
+    return `${actor} ${verb} $${action.amount}`
   }
   return `${actor} ${verb}`
 }
 
-function formatShowdownAction(action: ShowdownAction): string {
-  const actor = actorName(action.actor.value)
-  const verb = action.verb.value
-  if (verb === 'shows' && action.cards) {
-    const c1 = cardGlyph(action.cards[0].value)
-    const c2 = cardGlyph(action.cards[1].value)
-    return `${actor} shows ${c1} ${c2}`
+function formatShowdownEntry(entry: ShowdownEntry): string {
+  const actor = actorName(entry.actor)
+  if (entry.verb === 'shows' && entry.cards) {
+    return `${actor} shows ${cardGlyph(entry.cards[0])} ${cardGlyph(entry.cards[1])}`
   }
-  return `${actor} ${verb}`
+  return `${actor} ${entry.verb ?? ''}`
 }
 
 /**
  * Produces a human-readable export string with suit glyphs and full verb words.
- * Format matches SPEC section 8.
  */
-export function formatForExport(ast: HandAST): string {
+export function formatForExport(state: HandState): string {
   const lines: string[] = []
 
   const date = new Date().toISOString().slice(0, 10)
-  const stakesText = ast.stakes ? ` · ${ast.stakes.raw.value} NLH` : ''
+  const stakesText = state.stakes ? ` · ${state.stakes} NLH` : ''
   lines.push(`${date}${stakesText}`)
 
-  const boardCards = ast.board.cards.map((t) => cardGlyph(t.value)).join(' ')
+  const boardCards = (state.board ?? []).map(cardGlyph).join(' ')
   lines.push(`Board: ${boardCards}`)
 
-  const heroPos = ast.hero.position.value
-  const heroCard1 = cardGlyph(ast.hero.cards[0].value)
-  const heroCard2 = cardGlyph(ast.hero.cards[1].value)
-  lines.push(`Hero (${heroPos}): ${heroCard1} ${heroCard2}`)
+  const heroPos = state.hero?.position ?? 'H'
+  const heroCards = state.hero?.cards
+    ? `${cardGlyph(state.hero.cards[0])} ${cardGlyph(state.hero.cards[1])}`
+    : ''
+  lines.push(`Hero (${heroPos}): ${heroCards}`)
 
-  for (const street of ast.streets) {
+  for (const street of state.streets) {
     const actions = street.actions.map(formatAction).join(', ')
     lines.push(`${street.name}: ${actions}`)
   }
 
-  if (ast.showdown) {
-    const sdActions = ast.showdown.actions.map(formatShowdownAction).join(', ')
-    lines.push(`Showdown: ${sdActions}`)
+  if (state.showdown) {
+    const sd = state.showdown.map(formatShowdownEntry).join(', ')
+    lines.push(`Showdown: ${sd}`)
   }
 
   return lines.join('\n')

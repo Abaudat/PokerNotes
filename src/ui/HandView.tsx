@@ -48,10 +48,10 @@ interface Props {
 
 export default function HandView({ hand, onBack, onEdit }: Props) {
   const [copied, setCopied] = useState(false)
-  const vm = buildHandViewModel(hand.ast)
+  const vm = buildHandViewModel(hand.state)
 
   function handleExport() {
-    const text = formatForExport(hand.ast)
+    const text = formatForExport(hand.state)
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)

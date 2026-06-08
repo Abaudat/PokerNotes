@@ -377,16 +377,21 @@ test('cancel edit — closes overlay without change', async ({ page }) => {
 
 // ── Showdown actor chip ───────────────────────────────────────────────────────
 
-test('edit showdown actor — change H to BB', async ({ page }) => {
+test('edit showdown actor — restricted to players in the hand', async ({ page }) => {
   await recordMinimalComplete(page)
   await page.getByRole('button', { name: '→ Showdown' }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'H', exact: true }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Wins' }).click()
 
   await page.locator('[data-chip-id="showdown:0:actor"]').click()
-  await page.getByRole('button', { name: 'BB', exact: true }).first().click()
 
-  await expect(page.locator('[data-chip-id="showdown:0:actor"]')).toHaveText('BB')
+  // Only players still in the hand (H, V) are offered — never folded/absent seats like BB.
+  const step = page.locator('[data-testid="step-content"]')
+  await expect(step.getByRole('button', { name: 'V', exact: true })).toBeVisible()
+  await expect(step.getByRole('button', { name: 'BB', exact: true })).not.toBeVisible()
+
+  await step.getByRole('button', { name: 'V', exact: true }).click()
+  await expect(page.locator('[data-chip-id="showdown:0:actor"]')).toHaveText('V')
 })
 
 // ── Showdown verb chip ────────────────────────────────────────────────────────

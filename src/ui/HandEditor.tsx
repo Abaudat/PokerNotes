@@ -1,38 +1,63 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { nextSuggestions } from '../core/suggestions'
 import { parseHand } from '../core/parser'
-import { RANKS, SUITS, SUIT_GLYPHS } from '../core/cards'
-import { buildRecordingView, applyChipEdit, usedCardsExcept } from '../core/recordingView'
-import type { Chip } from '../core/recordingView'
-import type { HandAST, StreetName } from '../core/types'
-import { POSITION_COLORS, HERO_COLOR } from '../core/render'
+import { serializeHand } from '../core/serializer'
+import { RANKS, SUITS, SUIT_GLYPHS, parseCard } from '../core/cards'
+import {
+  nextStep,
+  isComplete,
+  usedCards,
+  nextStreetName,
+  legalActorsForActionSlot,
+  legalVerbsForActionSlot,
+  legalShowdownActorsForSlot,
+  HERO_POSITIONS,
+  createBlank,
+  setStakes,
+  setBoard,
+  setHeroPosition,
+  setHeroCards,
+  beginAction,
+  setVerb,
+  advanceToStreet,
+  beginShowdown,
+  beginShowdownActor,
+  setShowdownVerb,
+  setShowdownCards,
+  addNote,
+  editNote,
+  editBoardCard,
+  addBoardCard,
+  editHeroPosition,
+  editHeroCard,
+  editActor,
+  editShowdownActor,
+  editShowdownVerb,
+  editShowdownCard,
+} from '../core/engine'
+import { buildEditorView, POSITION_COLORS, HERO_COLOR } from '../core/render'
+import type { Chip } from '../core/render'
+import type { HandState, Verb, Card, ShowdownVerb, StreetName } from '../core/types'
 
-const STREET_ORDER: StreetName[] = ['Preflop', 'Flop', 'Turn', 'River']
 const SUIT_COLORS: Record<string, string> = { s: '#94a3b8', h: '#f87171', d: '#fb923c', c: '#4ade80' }
-const VERB_LABELS: Record<string, string> = {
-  x: 'Check', c: 'Call', r: 'Raise', f: 'Fold', b: 'Bet',
-  a: 'All In', 'all in': 'All In',
+const VERB_LABELS: Record<Verb, string> = {
+  x: 'Check', c: 'Call', r: 'Raise', f: 'Fold', b: 'Bet', a: 'All In',
 }
-const SHOWDOWN_VERB_LABELS: Record<string, string> = {
+const SHOWDOWN_VERBS: ShowdownVerb[] = ['shows', 'wins', 'loses']
+const SHOWDOWN_VERB_LABELS: Record<ShowdownVerb, string> = {
   shows: 'Shows', wins: 'Wins', loses: 'Loses',
 }
 const STAKES_PRESETS = ['1/2', '2/5', '5/5', '5/10', '10/20']
 
-const HERO_POSITIONS = [
-  'UTG', 'UTG+1', 'UTG+2', 'UTG+3',
-  'HJ', 'CO', 'BTN', 'SB', 'BB', 'EP', 'MP',
-]
-const ALL_POSITIONS = [
-  'H', 'V', 'V2', 'V3', 'UTG', 'UTG+1', 'UTG+2', 'UTG+3',
-  'HJ', 'CO', 'BTN', 'SB', 'BB', 'EP', 'MP',
-]
-
 interface Props {
   initialRaw?: string
   defaultStakes?: string
-  onSave: (raw: string, ast: HandAST) => void
+  onSave: (raw: string, state: HandState) => void
   onCancel: () => void
+}
+
+function toCard(code: string): Card {
+  return parseCard(code)!
 }
 
 function actorColor(actor: string): string {
@@ -41,7 +66,7 @@ function actorColor(actor: string): string {
 }
 
 function CardGrid({
-  usedCards,
+  usedCards: used,
   selected,
   onToggle,
 }: {
@@ -62,13 +87,13 @@ function CardGrid({
       {reversedRanks.flatMap((rank) =>
         SUITS.map((suit) => {
           const code = rank + suit
-          const used = usedCards.has(code)
+          const isUsed = used.has(code)
           const active = sel.has(code)
           return (
             <button
               key={code}
-              onClick={() => { if (!used) onToggle(code) }}
-              disabled={used}
+              onClick={() => { if (!isUsed) onToggle(code) }}
+              disabled={isUsed}
               style={{
                 padding: '0.25rem 0',
                 fontSize: '0.72rem',
@@ -77,8 +102,8 @@ function CardGrid({
                 color: active ? '#000' : 'var(--text)',
                 border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
                 borderRadius: 4,
-                opacity: used ? 0.2 : 1,
-                cursor: used ? 'default' : 'pointer',
+                opacity: isUsed ? 0.2 : 1,
+                cursor: isUsed ? 'default' : 'pointer',
                 fontWeight: active ? 700 : 400,
               }}
             >
@@ -171,97 +196,101 @@ function ChipAmountInput({
   )
 }
 
-// ── ActiveEdit state ─────────────────────────────────────────────────────────
-type EditStep = 'pick' | 'verb' | 'amount' | 'amount-opt'
-interface ActiveEdit {
-  chip: Chip
-  rawSnapshot: string
-  step: EditStep
-  chosenVerb?: string
+interface AmountEntry {
+  verb: Verb
+  optional: boolean
+  street: StreetName
+  index: number
 }
 
 export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel }: Props) {
-  const [raw, setRaw] = useState(initialRaw ?? '')
-  const [history, setHistory] = useState<string[]>([])
+  const [state, setState] = useState<HandState>(() =>
+    initialRaw ? parseHand(initialRaw) : createBlank(),
+  )
+  const [history, setHistory] = useState<HandState[]>([])
   const [pendingCards, setPendingCards] = useState<string[]>([])
   const [amountInput, setAmountInput] = useState('')
-  const [selectedStakes, setSelectedStakes] = useState<string | null>(defaultStakes ?? null)
+  const [selectedStakes, setSelectedStakes] = useState<string | null>(
+    initialRaw ? null : (defaultStakes ?? null),
+  )
   const [freeInput, setFreeInput] = useState('')
   const [showFree, setShowFree] = useState(false)
-  const [activeEdit, setActiveEdit] = useState<ActiveEdit | null>(null)
+  const [activeEdit, setActiveEdit] = useState<Chip | null>(null)
+  const [amountEntry, setAmountEntry] = useState<AmountEntry | null>(null)
 
-  // ── RECORDING MODE helpers ─────────────────────────────────────────────────
-  function commit(text: string) {
-    setHistory((h) => [...h, raw])
-    setRaw((r) => r + text)
+  // ── Core state transition: snapshot for undo, apply, reset transient UI ──────
+  function apply(next: HandState) {
+    setHistory((h) => [...h, state])
+    setState(next)
     setPendingCards([])
     setAmountInput('')
-    setShowFree(false)
-    setFreeInput('')
-  }
-
-  function commitNote(note: string) {
-    if (!note.trim()) return
-    setHistory((h) => [...h, raw])
-    setRaw((currentRaw) => {
-      const idx = currentRaw.lastIndexOf('\n')
-      const beforeLast = idx >= 0 ? currentRaw.slice(0, idx + 1) : ''
-      const lastLine = idx >= 0 ? currentRaw.slice(idx + 1) : currentRaw
-      return beforeLast + '# ' + note.trim() + '\n' + lastLine
-    })
+    setAmountEntry(null)
+    setActiveEdit(null)
     setShowFree(false)
     setFreeInput('')
   }
 
   function undo() {
     if (history.length === 0) return
-    setRaw(history[history.length - 1])
+    setState(history[history.length - 1])
     setHistory((h) => h.slice(0, -1))
     setPendingCards([])
     setAmountInput('')
+    setAmountEntry(null)
     setActiveEdit(null)
   }
 
   function handleSave() {
-    try {
-      const ast = parseHand(raw)
-      onSave(raw, ast)
-    } catch {
-      // shouldn't happen if the wizard is followed
-    }
+    if (!isComplete(state)) return
+    onSave(serializeHand(state), state)
   }
 
   function openEdit(chip: Chip) {
     setPendingCards([])
-    setAmountInput(chip.editKind === 'note' ? (chip.meta?.note ?? '') : '')
-    setActiveEdit({
-      chip,
-      rawSnapshot: raw,
-      step: chip.editKind === 'verb' ? 'verb' : 'pick',
-    })
+    setAmountEntry(null)
+    setAmountInput(chip.editKind === 'note' ? chip.text.replace(/^#\s*/, '') : '')
+    setActiveEdit(chip)
   }
 
   function cancelEdit() {
     setActiveEdit(null)
+    setAmountEntry(null)
     setPendingCards([])
     setAmountInput('')
   }
 
-  function applyEdit(newText: string) {
-    if (!activeEdit || !activeEdit.chip.span) return
-    if (raw !== activeEdit.rawSnapshot) { setActiveEdit(null); return }
-    setHistory((h) => [...h, raw])
-    setRaw(applyChipEdit(raw, activeEdit.chip.span, newText))
-    setActiveEdit(null)
-    setPendingCards([])
-    setAmountInput('')
+  // Pick a verb for the action at (street, index): branch into amount entry when needed.
+  function chooseVerb(street: StreetName, index: number, verb: Verb) {
+    if (verb === 'r' || verb === 'b') {
+      setAmountEntry({ verb, optional: false, street, index })
+      setAmountInput('')
+    } else if (verb === 'a') {
+      setAmountEntry({ verb: 'a', optional: true, street, index })
+      setAmountInput('')
+    } else {
+      apply(setVerb(state, street, index, verb))
+    }
   }
 
-  const { mode, options, context } = nextSuggestions(raw)
+  function submitAmount(amount: number) {
+    if (!amountEntry) return
+    apply(setVerb(state, amountEntry.street, amountEntry.index, amountEntry.verb, amount))
+  }
 
-  // ── CHIP DISPLAY ──────────────────────────────────────────────────────────
-  const chipLines = buildRecordingView(raw)
+  function skipAmount() {
+    if (!amountEntry) return
+    apply(setVerb(state, amountEntry.street, amountEntry.index, amountEntry.verb))
+  }
 
+  function commitNote(note: string) {
+    if (!note.trim()) return
+    apply(addNote(state, note))
+  }
+
+  const step = nextStep(state)
+  const chipLines = buildEditorView(state)
+
+  // ── Chip styling ────────────────────────────────────────────────────────────
   function chipStyle(chip: Chip): React.CSSProperties {
     const base: React.CSSProperties = {
       display: 'inline-flex',
@@ -280,9 +309,9 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     if (chip.kind === 'stakes') {
       return { ...base, color: 'var(--text-muted)', fontSize: '0.8rem' }
     }
-    if (chip.kind === 'board-card') {
+    if (chip.kind === 'board-card' || chip.kind === 'hero-card' || chip.kind === 'showdown-card') {
       const suitCode = chip.meta?.cardCode?.[1]
-      return { ...base, color: suitCode ? SUIT_COLORS[suitCode] : 'var(--text)' }
+      return { ...base, color: suitCode ? SUIT_COLORS[suitCode] : 'var(--text)', fontWeight: chip.kind === 'hero-card' ? 600 : 500 }
     }
     if (chip.kind === 'board-card-add') {
       return { ...base, border: '1px dashed var(--border)', background: 'transparent', color: 'var(--text-muted)', fontWeight: 700 }
@@ -290,20 +319,12 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     if (chip.kind === 'hero-pos') {
       return { ...base, background: HERO_COLOR, color: '#000', border: 'none', fontWeight: 700 }
     }
-    if (chip.kind === 'hero-card') {
-      const suitCode = chip.meta?.cardCode?.[1]
-      return { ...base, color: suitCode ? SUIT_COLORS[suitCode] : 'var(--text)', fontWeight: 600 }
-    }
     if (chip.kind === 'action-actor' || chip.kind === 'showdown-actor') {
       const color = actorColor(chip.meta?.actor ?? '')
       return { ...base, color, fontWeight: chip.meta?.actor === 'H' ? 700 : 500 }
     }
     if (chip.kind === 'action-verb' || chip.kind === 'showdown-verb') {
       return { ...base, color: 'var(--text-muted)' }
-    }
-    if (chip.kind === 'showdown-card') {
-      const suitCode = chip.meta?.cardCode?.[1]
-      return { ...base, color: suitCode ? SUIT_COLORS[suitCode] : 'var(--text)' }
     }
     if (chip.kind === 'note') {
       return { ...base, color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.78rem' }
@@ -336,33 +357,32 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
       {chipLines.map((line) => (
         <div key={line.key} style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          {sectionHeader(line.key) && (
-            <span style={headerStyle}>{sectionHeader(line.key)}</span>
-          )}
-          {line.chips.map((chip) => (
+          {sectionHeader(line.key) && <span style={headerStyle}>{sectionHeader(line.key)}</span>}
+          {line.chips.map((chip) =>
             chip.editKind ? (
-              <button
-                key={chip.id}
-                data-chip-id={chip.id}
-                onClick={() => openEdit(chip)}
-                style={chipStyle(chip)}
-              >
+              <button key={chip.id} data-chip-id={chip.id} onClick={() => openEdit(chip)} style={chipStyle(chip)}>
                 {chip.text}
               </button>
             ) : (
               <span key={chip.id} style={chipStyle(chip)}>{chip.text}</span>
-            )
-          ))}
+            ),
+          )}
         </div>
       ))}
     </div>
   ) : null
 
-  // ── EDIT OVERLAY ──────────────────────────────────────────────────────────
-  let editContent: ReactNode = null
-  if (activeEdit) {
-    const { chip, step } = activeEdit
+  // ── Card picker used set, excluding the card currently being edited ──────────
+  function usedExcept(code?: string): Set<string> {
+    const used = new Set(usedCards(state))
+    if (code) used.delete(code)
+    return used
+  }
 
+  // ── Edit overlay ────────────────────────────────────────────────────────────
+  let editContent: ReactNode = null
+  if (activeEdit && !amountEntry) {
+    const chip = activeEdit
     const editHeaderLabel = chip.editKind === 'board-card-add' ? 'Add board card' : `Editing: ${chip.text}`
     const editHeader = (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
@@ -371,204 +391,122 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
       </div>
     )
 
-    if (step === 'pick') {
-      if (chip.editKind === 'board-card' || chip.editKind === 'hero-card' || chip.editKind === 'showdown-card') {
-        const usedCards = chip.span ? usedCardsExcept(raw, chip.span) : new Set<string>()
-        editContent = (
-          <div>
-            {editHeader}
-            <CardGrid
-              usedCards={usedCards}
-              selected={pendingCards}
-              onToggle={(code) => {
-                setPendingCards([code])
-                applyEdit(code)
-              }}
-            />
-          </div>
-        )
-      } else if (chip.editKind === 'board-card-add') {
-        const usedCards = chip.span ? usedCardsExcept(raw, chip.span) : new Set<string>()
-        editContent = (
-          <div>
-            {editHeader}
-            <CardGrid
-              usedCards={usedCards}
-              selected={pendingCards}
-              onToggle={(code) => {
-                setPendingCards([code])
-                applyEdit(' ' + code)
-              }}
-            />
-          </div>
-        )
-      } else if (chip.editKind === 'hero-pos') {
-        editContent = (
-          <div>
-            {editHeader}
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {HERO_POSITIONS.map((pos) => (
-                <button key={pos} className="btn-secondary" onClick={() => applyEdit(pos)}>{pos}</button>
-              ))}
-            </div>
-          </div>
-        )
-      } else if (chip.editKind === 'actor') {
-        editContent = (
-          <div>
-            {editHeader}
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {ALL_POSITIONS.map((pos) => (
-                <button key={pos} className="btn-secondary" onClick={() => applyEdit(pos)}>{pos}</button>
-              ))}
-            </div>
-          </div>
-        )
-      } else if (chip.editKind === 'showdown-actor') {
-        editContent = (
-          <div>
-            {editHeader}
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {ALL_POSITIONS.map((pos) => (
-                <button key={pos} className="btn-secondary" onClick={() => applyEdit(pos)}>{pos}</button>
-              ))}
-            </div>
-          </div>
-        )
-      } else if (chip.editKind === 'showdown-verb') {
-        editContent = (
-          <div>
-            {editHeader}
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {['shows', 'wins', 'loses'].map((v) => (
-                <button key={v} className="btn-secondary" onClick={() => applyEdit(v)}>
-                  {SHOWDOWN_VERB_LABELS[v] ?? v}
-                </button>
-              ))}
-            </div>
-          </div>
-        )
-      } else if (chip.editKind === 'stakes') {
-        editContent = (
-          <div>
-            {editHeader}
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {STAKES_PRESETS.map((s) => (
-                <button key={s} className="btn-secondary" onClick={() => applyEdit(s)}>{s}</button>
-              ))}
-            </div>
-          </div>
-        )
-      } else if (chip.editKind === 'note') {
-        const isValid = amountInput.trim().length > 0
-        editContent = (
-          <div>
-            {editHeader}
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                value={amountInput}
-                onChange={(e) => setAmountInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && isValid) applyEdit(amountInput.trim()) }}
-                autoFocus
-                placeholder="note…"
-                style={{
-                  flex: 1,
-                  background: 'var(--surface)',
-                  color: 'var(--text)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                  padding: '0.5rem 0.75rem',
-                  fontSize: '0.875rem',
-                  outline: 'none',
-                  fontFamily: 'inherit',
-                }}
-              />
-              <button className="btn-primary" disabled={!isValid} onClick={() => applyEdit(amountInput.trim())}>OK</button>
-            </div>
-          </div>
-        )
-      }
-    } else if (step === 'verb') {
-      const bbOption = chip.meta?.bbOption ?? false
-      const facingBet = chip.meta?.facingBet ?? false
-      const verbOptions = bbOption
-        ? ['x', 'r', 'f', 'all in']
-        : facingBet
-          ? ['c', 'r', 'f', 'all in']
-          : ['x', 'b', 'f', 'all in']
+    if (chip.editKind === 'board-card') {
       editContent = (
-        <div>
-          {editHeader}
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {verbOptions.map((v) => (
-              <button
-                key={v}
-                className="btn-secondary"
-                onClick={() => {
-                  const verbInternal = v === 'all in' ? 'a' : v
-                  if (verbInternal === 'r' || verbInternal === 'b') {
-                    setActiveEdit({ ...activeEdit, step: 'amount', chosenVerb: v })
-                  } else if (verbInternal === 'a') {
-                    setActiveEdit({ ...activeEdit, step: 'amount-opt', chosenVerb: 'all in' })
-                  } else {
-                    // check/call/fold — no amount needed
-                    applyEdit(v)
-                  }
-                }}
-              >
-                {VERB_LABELS[v] ?? v}
-              </button>
-            ))}
-          </div>
+        <div>{editHeader}
+          <CardGrid usedCards={usedExcept(chip.meta?.cardCode)} selected={[]} onToggle={(c) => apply(editBoardCard(state, chip.cardIndex!, toCard(c)))} />
         </div>
       )
-    } else if (step === 'amount') {
-      const chosenVerb = activeEdit.chosenVerb ?? 'b'
+    } else if (chip.editKind === 'board-card-add') {
       editContent = (
-        <div>
-          {editHeader}
-          <ChipAmountInput
-            amountInput={amountInput}
-            onAmountChange={setAmountInput}
-            onSubmit={(n) => applyEdit(`${chosenVerb} ${n}`)}
-          />
+        <div>{editHeader}
+          <CardGrid usedCards={usedExcept()} selected={[]} onToggle={(c) => apply(addBoardCard(state, toCard(c)))} />
         </div>
       )
-    } else if (step === 'amount-opt') {
+    } else if (chip.editKind === 'hero-card') {
       editContent = (
-        <div>
-          {editHeader}
-          <ChipAmountInput
-            amountInput={amountInput}
-            onAmountChange={setAmountInput}
-            onSubmit={(n) => applyEdit(`all in ${n}`)}
-            onSkip={() => applyEdit('all in')}
-          />
+        <div>{editHeader}
+          <CardGrid usedCards={usedExcept(chip.meta?.cardCode)} selected={[]} onToggle={(c) => apply(editHeroCard(state, chip.cardIndex!, toCard(c)))} />
+        </div>
+      )
+    } else if (chip.editKind === 'showdown-card') {
+      editContent = (
+        <div>{editHeader}
+          <CardGrid usedCards={usedExcept(chip.meta?.cardCode)} selected={[]} onToggle={(c) => apply(editShowdownCard(state, chip.index!, chip.cardIndex!, toCard(c)))} />
+        </div>
+      )
+    } else if (chip.editKind === 'hero-pos') {
+      editContent = (
+        <div>{editHeader}
+          <ButtonRow>{HERO_POSITIONS.map((pos) => (
+            <button key={pos} className="btn-secondary" onClick={() => apply(editHeroPosition(state, pos))}>{pos}</button>
+          ))}</ButtonRow>
+        </div>
+      )
+    } else if (chip.editKind === 'actor') {
+      const options = legalActorsForActionSlot(state, chip.street!, chip.index!)
+      editContent = (
+        <div>{editHeader}
+          <ButtonRow>{options.map((pos) => (
+            <button key={pos} className="btn-secondary" onClick={() => apply(editActor(state, chip.street!, chip.index!, pos))}>{pos}</button>
+          ))}</ButtonRow>
+        </div>
+      )
+    } else if (chip.editKind === 'verb') {
+      const { verbs } = legalVerbsForActionSlot(state, chip.street!, chip.index!)
+      editContent = (
+        <div>{editHeader}
+          <ButtonRow>{verbs.map((v) => (
+            <button key={v} className="btn-secondary" onClick={() => chooseVerb(chip.street!, chip.index!, v)}>{VERB_LABELS[v]}</button>
+          ))}</ButtonRow>
+        </div>
+      )
+    } else if (chip.editKind === 'showdown-actor') {
+      const options = legalShowdownActorsForSlot(state, chip.index!)
+      editContent = (
+        <div>{editHeader}
+          <ButtonRow>{options.map((pos) => (
+            <button key={pos} className="btn-secondary" onClick={() => apply(editShowdownActor(state, chip.index!, pos))}>{pos}</button>
+          ))}</ButtonRow>
+        </div>
+      )
+    } else if (chip.editKind === 'showdown-verb') {
+      editContent = (
+        <div>{editHeader}
+          <ButtonRow>{SHOWDOWN_VERBS.map((v) => (
+            <button key={v} className="btn-secondary" onClick={() => apply(editShowdownVerb(state, chip.index!, v))}>{SHOWDOWN_VERB_LABELS[v]}</button>
+          ))}</ButtonRow>
+        </div>
+      )
+    } else if (chip.editKind === 'stakes') {
+      editContent = (
+        <div>{editHeader}
+          <ButtonRow>{STAKES_PRESETS.map((s) => (
+            <button key={s} className="btn-secondary" onClick={() => apply(setStakes(state, s))}>{s}</button>
+          ))}</ButtonRow>
+        </div>
+      )
+    } else if (chip.editKind === 'note') {
+      const isValid = amountInput.trim().length > 0
+      editContent = (
+        <div>{editHeader}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input
+              value={amountInput}
+              onChange={(e) => setAmountInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && isValid) apply(editNote(state, chip.noteId!, amountInput.trim())) }}
+              autoFocus
+              placeholder="note…"
+              style={inputStyle}
+            />
+            <button className="btn-primary" disabled={!isValid} onClick={() => apply(editNote(state, chip.noteId!, amountInput.trim()))}>OK</button>
+          </div>
         </div>
       )
     }
   }
 
-  // ── HEADER ─────────────────────────────────────────────────────────────────
-  const header = (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <h2 style={{ fontSize: '1rem', fontWeight: 600 }}>{initialRaw !== undefined ? 'Edit hand' : 'New hand'}</h2>
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
-        {history.length > 0 && (
-          <button className="btn-secondary" onClick={undo}>← Undo</button>
-        )}
-        <button className="btn-secondary" onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
-  )
-
-  // ── STEP CONTENT (wizard) ──────────────────────────────────────────────────
+  // ── Wizard step content ─────────────────────────────────────────────────────
   let stepLabel = ''
   let stepContent: ReactNode = null
 
-  if (mode === 'AWAIT_BOARD') {
+  if (amountEntry) {
+    stepLabel = amountEntry.optional ? 'Effective amount (optional)' : 'Amount'
+    stepContent = (
+      <ChipAmountInput
+        amountInput={amountInput}
+        onAmountChange={setAmountInput}
+        onSubmit={submitAmount}
+        onSkip={amountEntry.optional ? skipAmount : undefined}
+      />
+    )
+  } else if (step.kind === 'board') {
     const validCount = pendingCards.length === 0 || (pendingCards.length >= 3 && pendingCards.length <= 5)
-    const stakesPrefix = selectedStakes ? `[Stakes: ${selectedStakes}]\n` : ''
+    const commitBoard = (cards: Card[]) => {
+      let next = setBoard(state, cards)
+      if (selectedStakes) next = setStakes(next, selectedStakes)
+      apply(next)
+    }
     stepLabel = `Board cards${pendingCards.length > 0 ? ` — ${pendingCards.length} selected` : ''}`
     stepContent = (
       <>
@@ -585,13 +523,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
             </button>
           ))}
           {selectedStakes && (
-            <button
-              className="btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
-              onClick={() => setSelectedStakes(null)}
-            >
-              None
-            </button>
+            <button className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }} onClick={() => setSelectedStakes(null)}>None</button>
           )}
         </div>
         <CardGrid
@@ -607,10 +539,10 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
         />
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
           {pendingCards.length === 0 && (
-            <button className="btn-secondary" onClick={() => commit(stakesPrefix + 'Board:\nHero: ')}>No board</button>
+            <button className="btn-secondary" onClick={() => commitBoard([])}>No board</button>
           )}
           {pendingCards.length > 0 && (
-            <button className="btn-primary" disabled={!validCount} onClick={() => commit(stakesPrefix + 'Board: ' + pendingCards.join(' ') + '\nHero: ')}>
+            <button className="btn-primary" disabled={!validCount} onClick={() => commitBoard(pendingCards.map(toCard))}>
               Done ({pendingCards.length})
             </button>
           )}
@@ -620,27 +552,20 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
         </div>
       </>
     )
-  } else if (mode === 'AWAIT_HERO_POS') {
+  } else if (step.kind === 'heroPosition') {
     stepLabel = 'Hero position'
     stepContent = (
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-        {options.map((pos) => (
-          <button key={pos} className="btn-secondary" onClick={() => commit(pos + ' ')}>
-            {pos}
-          </button>
-        ))}
-      </div>
+      <ButtonRow>{step.options.map((pos) => (
+        <button key={pos} className="btn-secondary" onClick={() => apply(setHeroPosition(state, pos))}>{pos}</button>
+      ))}</ButtonRow>
     )
-  } else if (mode === 'AWAIT_HERO_CARDS') {
-    const allCodes = RANKS.flatMap((r) => SUITS.map((s) => r + s))
-    const availableSet = new Set(options)
-    const usedCards = new Set(allCodes.filter((c) => !availableSet.has(c)))
+  } else if (step.kind === 'heroCards') {
     const isValid = pendingCards.length === 2
     stepLabel = `Hero hole cards — ${pendingCards.length}/2`
     stepContent = (
       <>
         <CardGrid
-          usedCards={usedCards}
+          usedCards={usedCards(state)}
           selected={pendingCards}
           onToggle={(code) =>
             setPendingCards((p) => {
@@ -651,138 +576,74 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
           }
         />
         <div style={{ marginTop: '0.5rem' }}>
-          <button
-            className="btn-primary"
-            disabled={!isValid}
-            onClick={() => commit(pendingCards.join('') + '\nPreflop: ')}
-          >
+          <button className="btn-primary" disabled={!isValid} onClick={() => apply(setHeroCards(state, [toCard(pendingCards[0]), toCard(pendingCards[1])]))}>
             {isValid ? `Done — ${pendingCards.join(' ')}` : 'Pick 2 cards'}
           </button>
         </div>
       </>
     )
-  } else if (mode === 'AWAIT_ACTOR') {
-    const currentStreet = context?.street
-    const canAdvance = context?.canAdvance
-    const canSave = context?.canSave
-
-    const actorText = (actor: string): string => {
-      if (!raw || raw.endsWith('\n')) return (currentStreet ?? 'Preflop') + ': ' + actor
-      if (raw.endsWith(': ') || raw.endsWith(', ')) return actor
-      return ', ' + actor
-    }
-
-    const nextSt: StreetName | undefined = (() => {
-      if (!currentStreet) return undefined
-      const idx = STREET_ORDER.indexOf(currentStreet)
-      return idx >= 0 && idx < STREET_ORDER.length - 1 ? STREET_ORDER[idx + 1] : undefined
-    })()
-
-    stepLabel = currentStreet ?? 'Next actor'
+  } else if (step.kind === 'actor') {
+    const currentStreet = step.street
+    const next = nextStreetName(state)
+    stepLabel = currentStreet
     stepContent = (
       <>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {options.map((actor) => (
-            <button key={actor} className="btn-secondary" onClick={() => commit(actorText(actor))}>
-              {actor}
-            </button>
-          ))}
-        </div>
-        {(canAdvance || context?.canShowdown || canSave) && (
+        <ButtonRow>{step.options.map((actor) => (
+          <button key={actor} className="btn-secondary" onClick={() => apply(beginAction(state, currentStreet, actor))}>{actor}</button>
+        ))}</ButtonRow>
+        {(step.canAdvance || step.canShowdown || step.canSave) && (
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-            {canAdvance && nextSt && (
-              <button className="btn-secondary" onClick={() => commit('\n' + nextSt + ': ')}>
-                → {nextSt}
-              </button>
+            {step.canAdvance && next && (
+              <button className="btn-secondary" onClick={() => apply(advanceToStreet(state, next))}>→ {next}</button>
             )}
-            {context?.canShowdown && (
-              <button className="btn-secondary" onClick={() => commit('\nShowdown: ')}>
-                → Showdown
-              </button>
+            {step.canShowdown && (
+              <button className="btn-secondary" onClick={() => apply(beginShowdown(state))}>→ Showdown</button>
             )}
-            {canSave && (
+            {step.canSave && (
               <button className="btn-primary" onClick={handleSave}>Save hand</button>
             )}
           </div>
         )}
       </>
     )
-  } else if (mode === 'AWAIT_VERB') {
+  } else if (step.kind === 'verb') {
+    const trailingIndex = (state.streets.find((s) => s.name === step.street)?.actions.length ?? 1) - 1
     stepLabel = 'Action'
     stepContent = (
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-        {options.map((verb) => (
-          <button key={verb} className="btn-secondary" onClick={() => commit(' ' + verb)}>
-            {VERB_LABELS[verb] ?? verb}
-          </button>
-        ))}
-      </div>
+      <ButtonRow>{step.options.map((v) => (
+        <button key={v} className="btn-secondary" onClick={() => chooseVerb(step.street, trailingIndex, v)}>{VERB_LABELS[v]}</button>
+      ))}</ButtonRow>
     )
-  } else if (mode === 'AWAIT_AMOUNT') {
-    stepLabel = 'Amount'
-    stepContent = (
-      <ChipAmountInput
-        amountInput={amountInput}
-        onAmountChange={setAmountInput}
-        onSubmit={(n) => commit(' ' + n)}
-      />
-    )
-  } else if (mode === 'AWAIT_AMOUNT_OPT') {
-    stepLabel = 'Effective amount (optional)'
-    stepContent = (
-      <ChipAmountInput
-        amountInput={amountInput}
-        onAmountChange={setAmountInput}
-        onSubmit={(n) => commit(' ' + n)}
-        onSkip={() => commit(', ')}
-      />
-    )
-  } else if (mode === 'AWAIT_SHOWDOWN_ACTOR') {
-    const canSave = context?.canSave
-
-    const showdownActorText = (actor: string): string => {
-      if (raw.endsWith(': ') || raw.endsWith(', ')) return actor
-      return ', ' + actor
-    }
-
+  } else if (step.kind === 'showdownActor') {
     stepLabel = 'Showdown'
     stepContent = (
       <>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {options.map((actor) => (
-            <button key={actor} className="btn-secondary" onClick={() => commit(showdownActorText(actor))}>
-              {actor}
-            </button>
-          ))}
-        </div>
-        {canSave && (
+        <ButtonRow>{step.options.map((actor) => (
+          <button key={actor} className="btn-secondary" onClick={() => apply(beginShowdownActor(state, actor))}>{actor}</button>
+        ))}</ButtonRow>
+        {step.canSave && (
           <div style={{ marginTop: '0.5rem' }}>
             <button className="btn-primary" onClick={handleSave}>Save hand</button>
           </div>
         )}
       </>
     )
-  } else if (mode === 'AWAIT_SHOWDOWN_VERB') {
+  } else if (step.kind === 'showdownVerb') {
+    const sdIndex = (state.showdown?.length ?? 1) - 1
     stepLabel = 'Showdown action'
     stepContent = (
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-        {options.map((verb) => (
-          <button key={verb} className="btn-secondary" onClick={() => commit(' ' + verb)}>
-            {SHOWDOWN_VERB_LABELS[verb] ?? verb}
-          </button>
-        ))}
-      </div>
+      <ButtonRow>{SHOWDOWN_VERBS.map((v) => (
+        <button key={v} className="btn-secondary" onClick={() => apply(setShowdownVerb(state, sdIndex, v))}>{SHOWDOWN_VERB_LABELS[v]}</button>
+      ))}</ButtonRow>
     )
-  } else if (mode === 'AWAIT_SHOWDOWN_CARDS') {
-    const allCodes = RANKS.flatMap((r) => SUITS.map((s) => r + s))
-    const availableSet = new Set(options)
-    const usedCards = new Set(allCodes.filter((c) => !availableSet.has(c)))
+  } else if (step.kind === 'showdownCards') {
+    const sdIndex = (state.showdown?.length ?? 1) - 1
     const isValid = pendingCards.length === 2
     stepLabel = 'Shown cards'
     stepContent = (
       <>
         <CardGrid
-          usedCards={usedCards}
+          usedCards={usedCards(state)}
           selected={pendingCards}
           onToggle={(code) =>
             setPendingCards((p) => {
@@ -793,11 +654,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
           }
         />
         <div style={{ marginTop: '0.5rem' }}>
-          <button
-            className="btn-primary"
-            disabled={!isValid}
-            onClick={() => commit(' ' + pendingCards.join(''))}
-          >
+          <button className="btn-primary" disabled={!isValid} onClick={() => apply(setShowdownCards(state, sdIndex, [toCard(pendingCards[0]), toCard(pendingCards[1])]))}>
             {isValid ? `Done — ${pendingCards.join(' ')}` : 'Pick 2 cards'}
           </button>
         </div>
@@ -805,36 +662,25 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     )
   }
 
-  // ── FREE-TEXT NOTE ─────────────────────────────────────────────────────────
+  // ── Header ───────────────────────────────────────────────────────────────────
+  const header = (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <h2 style={{ fontSize: '1rem', fontWeight: 600 }}>{initialRaw !== undefined ? 'Edit hand' : 'New hand'}</h2>
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        {history.length > 0 && <button className="btn-secondary" onClick={undo}>← Undo</button>}
+        <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  )
+
+  // ── Free-text note ────────────────────────────────────────────────────────────
   const freeSection = (
     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
       {!showFree ? (
-        <button
-          className="btn-secondary"
-          style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
-          onClick={() => setShowFree(true)}
-        >
-          ··· type manually
-        </button>
+        <button className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }} onClick={() => setShowFree(true)}>··· type manually</button>
       ) : (
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <input
-            value={freeInput}
-            onChange={(e) => setFreeInput(e.target.value)}
-            autoFocus
-            placeholder="note to add…"
-            style={{
-              flex: 1,
-              background: 'var(--surface)',
-              color: 'var(--text)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              padding: '0.5rem 0.75rem',
-              fontSize: '0.875rem',
-              outline: 'none',
-              fontFamily: 'inherit',
-            }}
-          />
+          <input value={freeInput} onChange={(e) => setFreeInput(e.target.value)} autoFocus placeholder="note to add…" style={inputStyle} />
           <button className="btn-primary" onClick={() => commitNote(freeInput)}>Add note</button>
           <button className="btn-secondary" onClick={() => { setShowFree(false); setFreeInput('') }}>Cancel</button>
         </div>
@@ -847,12 +693,34 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
       {header}
       {recordedDisplay}
       <div data-testid="step-content">
-        <StepLabel>{stepLabel}</StepLabel>
-        {activeEdit ? editContent : stepContent}
+        {editContent ? (
+          editContent
+        ) : (
+          <>
+            <StepLabel>{stepLabel}</StepLabel>
+            {stepContent}
+          </>
+        )}
       </div>
       {freeSection}
     </div>
   )
+}
+
+const inputStyle: React.CSSProperties = {
+  flex: 1,
+  background: 'var(--surface)',
+  color: 'var(--text)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius)',
+  padding: '0.5rem 0.75rem',
+  fontSize: '0.875rem',
+  outline: 'none',
+  fontFamily: 'inherit',
+}
+
+function ButtonRow({ children }: { children: ReactNode }) {
+  return <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>{children}</div>
 }
 
 function StepLabel({ children }: { children: ReactNode }) {
