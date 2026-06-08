@@ -447,3 +447,38 @@ describe('street advancement', () => {
     expect(r.context?.canSave).toBe(true)
   })
 })
+
+// ---------------------------------------------------------------------------
+// AWAIT_SHOWDOWN_ACTOR — only players still in the hand may showdown
+// ---------------------------------------------------------------------------
+
+describe('AWAIT_SHOWDOWN_ACTOR', () => {
+  it('enters showdown actor mode when a Showdown line is present', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: H c\nShowdown: `)
+    expect(r.mode).toBe('AWAIT_SHOWDOWN_ACTOR')
+  })
+
+  it('excludes a player who folded preflop', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: H r 40, CO c, BB f\nShowdown: `)
+    expect(r.options).not.toContain('BB')
+    expect(r.options).toContain('CO')
+  })
+
+  it('excludes a player who folded on a postflop street', () => {
+    const raw =
+      'Board: As 8h Td 2c\nHero: BTN AhKs\nPreflop: H r 40, CO c, BB c\nFlop: BB x, H b 20, CO f, BB c\nShowdown: '
+    const r = nextSuggestions(raw)
+    expect(r.options).not.toContain('CO')
+    expect(r.options).toContain('BB')
+  })
+
+  it('still offers generic villains who were never explicitly recorded', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: H c\nShowdown: `)
+    expect(r.options).toContain('V')
+  })
+
+  it('excludes an actor who has already had a showdown action recorded', () => {
+    const r = nextSuggestions(`${BASE}\nPreflop: H c\nShowdown: V wins, `)
+    expect(r.options).not.toContain('V')
+  })
+})
