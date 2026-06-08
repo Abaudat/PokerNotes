@@ -20,19 +20,6 @@ export interface Card {
   suit: Suit
 }
 
-/** Character offsets [start, end) in the raw hand string */
-export interface Span {
-  start: number
-  end: number
-}
-
-/** A typed value with a stable id and source location */
-export interface Token<T> {
-  id: string
-  value: T
-  span: Span
-}
-
 export type Position =
   | 'H'
   | 'V'
@@ -53,92 +40,93 @@ export type Position =
 /** x=check, c=call, r=raise, f=fold, b=bet, a=all-in */
 export type Verb = 'x' | 'c' | 'r' | 'f' | 'b' | 'a'
 
-export interface Action {
-  actor: Token<Position>
-  verb: Token<Verb>
-  amount?: Token<number>
-}
-
 export type StreetName = 'Preflop' | 'Flop' | 'Turn' | 'River'
+
+// ---------------------------------------------------------------------------
+// Semantic hand model (HandState) — the source of truth in the editor.
+// No spans: the editor renders directly from this model and maps UI elements
+// back to nodes positionally (street + index) or by stable node id.
+// During recording the model may be PARTIAL (board/hero unset, a trailing
+// action without a verb). serializeHand / presentation assume a complete state.
+// ---------------------------------------------------------------------------
+
+export interface Action {
+  id: string
+  actor: Position
+  /** undefined only for the trailing in-progress action while recording */
+  verb?: Verb
+  amount?: number
+}
 
 export interface Street {
   name: StreetName
   actions: Action[]
 }
 
-/** 0, 3, 4, or 5 community cards */
-export interface BoardLine {
-  cards: Token<Card>[]
-}
-
-export interface HeroLine {
-  position: Token<Position>
-  cards: [Token<Card>, Token<Card>]
-}
-
-/** The full stakes text after "Stakes:" */
-export interface StakesLine {
-  raw: Token<string>
-}
-
-// ---------------------------------------------------------------------------
-// Showdown
-// ---------------------------------------------------------------------------
-
 export type ShowdownVerb = 'shows' | 'wins' | 'loses'
 
-export interface ShowdownAction {
-  actor: Token<Position>
-  verb: Token<ShowdownVerb>
-  /** Only present when verb = 'shows' */
-  cards?: [Token<Card>, Token<Card>]
-}
-
-export interface ShowdownLine {
-  actions: ShowdownAction[]
-}
-
-// ---------------------------------------------------------------------------
-// Hand AST
-// ---------------------------------------------------------------------------
-
-export interface HandAST {
+export interface ShowdownEntry {
   id: string
-  stakes?: StakesLine
-  board: BoardLine
-  hero: HeroLine
+  actor: Position
+  /** undefined only for the trailing in-progress entry while recording */
+  verb?: ShowdownVerb
+  /** Only present when verb = 'shows' */
+  cards?: [Card, Card]
+}
+
+/** Where a free-text note sits in the serialized timeline (the section it follows) */
+export type NoteAnchor =
+  | 'top'
+  | 'stakes'
+  | 'board'
+  | 'hero'
+  | 'Preflop'
+  | 'Flop'
+  | 'Turn'
+  | 'River'
+  | 'showdown'
+
+export interface Note {
+  id: string
+  text: string
+  anchor: NoteAnchor
+}
+
+export interface Hero {
+  position: Position
+  /** undefined while the position has been chosen but cards are still pending */
+  cards?: [Card, Card]
+}
+
+export interface HandState {
+  id: string
+  stakes?: string
+  /** undefined until the board step is answered; then 0 | 3 | 4 | 5 cards */
+  board?: Card[]
+  hero?: Hero
   streets: Street[]
-  showdown?: ShowdownLine
-  raw: string
+  showdown?: ShowdownEntry[]
+  notes: Note[]
 }
 
 // ---------------------------------------------------------------------------
-// Suggestion engine
+// Engine: next-step suggestion driver
 // ---------------------------------------------------------------------------
 
-export type SuggestionMode =
-  | 'AWAIT_BOARD'
-  | 'AWAIT_HERO_POS'
-  | 'AWAIT_HERO_CARDS'
-  | 'AWAIT_ACTOR'
-  | 'AWAIT_VERB'
-  | 'AWAIT_AMOUNT'
-  | 'AWAIT_AMOUNT_OPT'
-  | 'AWAIT_SHOWDOWN_ACTOR'
-  | 'AWAIT_SHOWDOWN_VERB'
-  | 'AWAIT_SHOWDOWN_CARDS'
-
-export interface SuggestionContext {
-  street?: StreetName
-  actor?: string
-  facingBet?: boolean
-  canAdvance?: boolean
-  canSave?: boolean
-  canShowdown?: boolean
-}
-
-export interface SuggestionResult {
-  mode: SuggestionMode
-  options: string[]
-  context?: SuggestionContext
-}
+export type NextStep =
+  | { kind: 'board' }
+  | { kind: 'heroPosition'; options: Position[] }
+  | { kind: 'heroCards' }
+  | {
+      kind: 'actor'
+      street: StreetName
+      options: Position[]
+      canAdvance: boolean
+      canShowdown: boolean
+      canSave: boolean
+    }
+  | { kind: 'verb'; street: StreetName; actor: Position; options: Verb[]; facingBet: boolean; bbOption: boolean }
+  | { kind: 'amount'; street: StreetName; actor: Position; optional: boolean }
+  | { kind: 'showdownActor'; options: Position[]; canSave: boolean }
+  | { kind: 'showdownVerb'; actor: Position }
+  | { kind: 'showdownCards'; actor: Position }

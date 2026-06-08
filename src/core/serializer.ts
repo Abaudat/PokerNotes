@@ -1,61 +1,73 @@
 import { formatCard } from './cards'
-import type { HandAST, Street, Action, ShowdownLine, ShowdownAction } from './types'
+import type { HandState, Street, Action, ShowdownEntry, NoteAnchor } from './types'
 
 function serializeAction(action: Action): string {
-  const actor = action.actor.value
-  const verb = action.verb.value
-  const verbText = verb === 'a' ? 'all in' : verb
-  if (action.amount !== undefined) {
-    return `${actor} ${verbText} ${action.amount.value}`
+  if (action.verb === undefined) {
+    throw new Error(`Cannot serialize incomplete action for "${action.actor}" (no verb)`)
   }
-  return `${actor} ${verbText}`
+  const verbText = action.verb === 'a' ? 'all in' : action.verb
+  if (action.amount !== undefined) {
+    return `${action.actor} ${verbText} ${action.amount}`
+  }
+  return `${action.actor} ${verbText}`
 }
 
 function serializeStreet(street: Street): string {
-  const actions = street.actions.map(serializeAction).join(', ')
-  return `${street.name}: ${actions}`
+  return `${street.name}: ${street.actions.map(serializeAction).join(', ')}`
 }
 
-function serializeShowdownAction(action: ShowdownAction): string {
-  const actor = action.actor.value
-  const verb = action.verb.value
-  if (verb === 'shows' && action.cards) {
-    const c1 = formatCard(action.cards[0].value)
-    const c2 = formatCard(action.cards[1].value)
-    return `${actor} ${verb} ${c1}${c2}`
+function serializeShowdownEntry(entry: ShowdownEntry): string {
+  if (entry.verb === undefined) {
+    throw new Error(`Cannot serialize incomplete showdown entry for "${entry.actor}"`)
   }
-  return `${actor} ${verb}`
-}
-
-function serializeShowdown(showdown: ShowdownLine): string {
-  const actions = showdown.actions.map(serializeShowdownAction).join(', ')
-  return `Showdown: ${actions}`
+  if (entry.verb === 'shows' && entry.cards) {
+    return `${entry.actor} shows ${formatCard(entry.cards[0])}${formatCard(entry.cards[1])}`
+  }
+  return `${entry.actor} ${entry.verb}`
 }
 
 /**
- * Serialize a HandAST back to its canonical normalized text form.
- * Round-trip invariant: parseHand(serializeHand(ast)) ≡ ast.
+ * Serialize a HandState back to its canonical normalized text form (used only
+ * at the Firebase persistence boundary).
+ * Round-trip invariant: parseHand(serializeHand(state)) ≡ state (structurally,
+ * ignoring node ids). Throws if the state is incomplete.
  */
-export function serializeHand(ast: HandAST): string {
+export function serializeHand(state: HandState): string {
+  if (state.board === undefined) throw new Error('Cannot serialize: board not set')
+  if (state.hero === undefined || state.hero.cards === undefined) {
+    throw new Error('Cannot serialize: hero not complete')
+  }
+
   const lines: string[] = []
-
-  if (ast.stakes !== undefined) {
-    lines.push(`[Stakes: ${ast.stakes.raw.value}]`)
+  const emitNotes = (anchor: NoteAnchor) => {
+    for (const note of state.notes) {
+      if (note.anchor === anchor) lines.push(`# ${note.text}`)
+    }
   }
 
-  const boardCards = ast.board.cards.map((t) => formatCard(t.value)).join(' ')
+  emitNotes('top')
+
+  if (state.stakes !== undefined) {
+    lines.push(`[Stakes: ${state.stakes}]`)
+    emitNotes('stakes')
+  }
+
+  const boardCards = state.board.map(formatCard).join(' ')
   lines.push(`Board: ${boardCards}`)
+  emitNotes('board')
 
-  const heroPos = ast.hero.position.value
-  const heroCards = formatCard(ast.hero.cards[0].value) + formatCard(ast.hero.cards[1].value)
-  lines.push(`Hero: ${heroPos} ${heroCards}`)
+  const heroCards = formatCard(state.hero.cards[0]) + formatCard(state.hero.cards[1])
+  lines.push(`Hero: ${state.hero.position} ${heroCards}`)
+  emitNotes('hero')
 
-  for (const street of ast.streets) {
+  for (const street of state.streets) {
     lines.push(serializeStreet(street))
+    emitNotes(street.name)
   }
 
-  if (ast.showdown !== undefined) {
-    lines.push(serializeShowdown(ast.showdown))
+  if (state.showdown !== undefined) {
+    lines.push(`Showdown: ${state.showdown.map(serializeShowdownEntry).join(', ')}`)
+    emitNotes('showdown')
   }
 
   return lines.join('\n')

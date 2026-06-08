@@ -14,7 +14,7 @@ import type { User } from 'firebase/auth'
 import { getFirebaseApp } from '../data/firebase'
 import { FirestoreRepository } from '../data/firestoreRepository'
 import { parseHand } from '../core/parser'
-import type { HandAST } from '../core/types'
+import type { HandState } from '../core/types'
 import type { HandRepository, ListedHand } from '../data/repository'
 import HandHistory from '../ui/HandHistory'
 import HandEditor from '../ui/HandEditor'
@@ -23,7 +23,7 @@ import HandView from '../ui/HandView'
 export interface SavedHand {
   id: string
   raw: string
-  ast: HandAST
+  state: HandState
   savedAt: Date
 }
 
@@ -63,13 +63,13 @@ export default function App() {
     return repo.subscribe(setHands)
   }, [user?.uid])
 
-  async function saveHand(raw: string, ast: HandAST) {
+  async function saveHand(raw: string, state: HandState) {
     if (!repoRef.current) return
     const id = await repoRef.current.save(raw)
-    setView({ kind: 'view', hand: { id, raw, ast, savedAt: new Date() } })
+    setView({ kind: 'view', hand: { id, raw, state, savedAt: new Date() } })
   }
 
-  async function updateHand(id: string, raw: string, _ast: HandAST) {
+  async function updateHand(id: string, raw: string, _state: HandState) {
     if (!repoRef.current) return
     await repoRef.current.update(id, raw)
     setView({ kind: 'history' })
@@ -85,8 +85,8 @@ export default function App() {
     if (!repoRef.current) return
     const stored = await repoRef.current.get(id)
     if (!stored) return
-    const ast = parseHand(stored.raw)
-    setView({ kind: 'view', hand: { id: stored.id, raw: stored.raw, ast, savedAt: stored.createdAt } })
+    const state = parseHand(stored.raw)
+    setView({ kind: 'view', hand: { id: stored.id, raw: stored.raw, state, savedAt: stored.createdAt } })
   }
 
   if (user === undefined) {

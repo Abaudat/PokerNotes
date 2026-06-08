@@ -25,21 +25,19 @@ npx vitest run -t "breakdown"
 
 ## Architecture
 
-**The plain text is the source of truth.** The app stores a hand as a raw string; everything else is derived from it.
+**A rules-aware AST (`HandState`) is the source of truth in the editor.** Plain text is used only at the Firebase persistence boundary (`serializeHand` to save, `parseHand` to load). The editor holds a `HandState`; recording and editing both go through the engine, which owns every poker rule and is the single source of suggestions — so the wizard and the edit-option lists can never diverge.
 
 ### Core (pure, no framework imports)
 
 `src/core/` contains all domain logic — fully unit-testable without React or Firebase:
 
-- **`types.ts`** — all shared types: `Card`, `Token<T>` (value + stable `id` + `Span`), `HandAST`, `Action`, `Street`, `Position`, `Verb`, etc.
+- **`types.ts`** — all shared types: `Card`, `HandState`, `Action`, `Street`, `ShowdownEntry`, `Note`, `Position`, `Verb`, `NextStep`, etc. The model is span-free; nodes that the editor addresses carry a stable `id`. The model may be **partial during recording** (board/hero unset, a trailing action without a verb).
 - **`cards.ts`** — `parseCard(s)` / `formatCard(c)`, `SUIT_GLYPHS` (`♠♥♦♣`), `RANKS`, `SUITS`
-- **`parser.ts`** — `parseHand(raw) → HandAST`. Counter-based deterministic token IDs (`tok_N`), reset on each call. Every token carries `{ id, value, span }` so the UI can map rendered elements back to their source position.
-- **`serializer.ts`** — `serializeHand(ast) → string`. Round-trip invariant: `parse(serialize(ast)) ≡ ast`.
-- **`suggestions.ts`** *(M2, not yet implemented)* — `nextSuggestions(ast, cursor) → { mode, options[] }`
-- **`chips.ts`** *(M3)* — `breakdown(amount, denoms?) → Chip[]`, greedy over `[1000, 500, 100, 25, 5, 1]`
-- **`render.ts`** *(M3)* — view-model builder: cards → display tokens, positions → colors, Hero accent
-- **`export.ts`** *(M3)* — `formatForExport(ast) → string`, suit glyphs, full action words
-- **`editing.ts`** *(M3)* — `replaceToken(ast, id, newValue) → HandAST`
+- **`parser.ts`** — `parseHand(raw) → HandState`. Parses the persisted text grammar into the semantic model and captures `#` notes; assigns fresh node IDs (`node_N`, reset per call).
+- **`serializer.ts`** — `serializeHand(state) → string`. Re-emits notes at their anchors. Throws on an incomplete state. Round-trip invariant: `parse(serialize(state)) ≡ state` **structurally, ignoring ids**.
+- **`engine.ts`** — the poker rules engine (the heart). `nextStep(state)` drives the wizard; `legalActorsToAct` / `legalVerbs` / `activeAfterStreet` / `foldedActors` / `showdownEligibleActors` encode the rules; `legal*ForActionSlot` / `legalShowdownActorsForSlot` give the legal options for an **existing** node (used by the edit overlays); plus immutable mutation/edit ops (`beginAction`, `setVerb`, `advanceToStreet`, `editActor`, …) that are the editor's only way to change the model.
+- **`render.ts`** — `buildHandViewModel(state)` (read-only view) and `buildEditorView(state) → ChipLine[]` (interactive editor chips, keyed by positional ids like `action:Preflop:0:verb`), plus `POSITION_COLORS` / `HERO_COLOR`.
+- **`export.ts`** — `formatForExport(state) → string`, suit glyphs, full action words.
 
 ### Data layer
 
@@ -53,8 +51,9 @@ npx vitest run -t "breakdown"
 
 ### Key invariants
 
-- Token IDs are stable within a parsed hand; the editing model uses them to map UI interactions back to the AST (`replaceToken(ast, id, value)`).
-- `serializeHand(parseHand(raw))` normalizes raw (canonical form); `parseHand(serializeHand(ast))` must reproduce the same AST structure.
+- The engine is the **single source of poker rules**. The wizard (`nextStep`) and the edit-option lists (`legal*ForActionSlot`) both derive from it, so they cannot drift apart. Editing a node only ever offers the legal options for that slot.
+- The editor mutates `HandState` exclusively through engine ops; the persisted text is produced by `serializeHand` only at save time. Existing stored hands stay loadable (`parseHand` accepts the legacy text format, including `all in`/`a` and packed cards).
+- `serializeHand(parseHand(raw))` normalizes raw (canonical form); `parseHand(serializeHand(state))` reproduces the same model structure (ids aside). Notes must never be lost across a round-trip.
 - `src/core/` must never import from React, Firebase, or `src/ui/`.
 
 ## Workflow rules
