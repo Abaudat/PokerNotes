@@ -13,7 +13,7 @@ async function recordPreflopWithBoard(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: 'A♥', exact: true }).click()
   await page.getByRole('button', { name: 'K♥', exact: true }).click()
   await page.getByRole('button', { name: /Done/ }).click()
-  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'BTN', exact: true }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'H', exact: true }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Call' }).click()
 }
 
@@ -38,7 +38,7 @@ test('clicking → Flop advances wizard to the Flop step', async ({ page }) => {
 test('recording Preflop + Flop actions then saving succeeds', async ({ page }) => {
   await recordPreflopWithBoard(page)
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: '→ Flop' }).click()
-  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'BTN', exact: true }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'H', exact: true }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Check' }).click()
   await page.getByRole('button', { name: 'Save hand' }).click()
   await expect(page.getByRole('button', { name: '← History' })).toBeVisible()
@@ -47,7 +47,7 @@ test('recording Preflop + Flop actions then saving succeeds', async ({ page }) =
 test('hand view shows Flop section after recording Flop actions', async ({ page }) => {
   await recordPreflopWithBoard(page)
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: '→ Flop' }).click()
-  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'BTN', exact: true }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'H', exact: true }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Bet' }).click()
   await page.locator('input[type="number"]').fill('30')
   await page.getByRole('button', { name: 'OK' }).click()
@@ -66,7 +66,7 @@ test('board-card-add (+) chip is visible when board has fewer than 5 cards', asy
 test('clicking board-card-add adds a Turn card to the board', async ({ page }) => {
   await recordPreflopWithBoard(page)
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: '→ Flop' }).click()
-  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'BTN', exact: true }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'H', exact: true }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Check' }).click()
   await page.locator('[data-chip-id="board:add"]').click()
   await page.locator('[data-testid="card-picker"]').getByRole('button', { name: '2♣', exact: true }).click()
@@ -76,7 +76,7 @@ test('clicking board-card-add adds a Turn card to the board', async ({ page }) =
 test('→ Turn appears after adding a Turn card when on Flop', async ({ page }) => {
   await recordPreflopWithBoard(page)
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: '→ Flop' }).click()
-  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'BTN', exact: true }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'H', exact: true }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Check' }).click()
   // Board has 3 cards — → Turn not yet visible
   await expect(

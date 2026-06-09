@@ -75,7 +75,7 @@ test.describe('history with two hands', () => {
     await page.getByRole('button', { name: 'A♠' }).click()
     await page.getByRole('button', { name: 'K♠' }).click()
     await page.getByRole('button', { name: /Done/ }).click()
-    await page.getByRole('button', { name: 'CO', exact: true }).click()
+    await page.getByRole('button', { name: 'H', exact: true }).click()
     await page.getByRole('button', { name: 'Call' }).click()
     await page.getByRole('button', { name: 'Save hand' }).click()
     await page.getByRole('button', { name: '← History' }).click()

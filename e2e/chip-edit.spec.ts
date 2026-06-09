@@ -45,11 +45,11 @@ async function recordUpToPreflop(
 async function recordMinimalComplete(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: '1/2' }).click()
   await page.getByRole('button', { name: 'No board' }).click()
-  await page.getByRole('button', { name: 'BTN', exact: true }).click()
+  await page.getByRole('button', { name: 'BTN' }).click()
   await page.getByRole('button', { name: 'A♥', exact: true }).click()
   await page.getByRole('button', { name: 'K♠', exact: true }).click()
   await page.getByRole('button', { name: /Done/ }).click()
-  await page.getByRole('button', { name: 'BTN', exact: true }).click()
+  await page.getByRole('button', { name: 'H', exact: true }).click()
   await page.getByRole('button', { name: 'Call' }).click()
   await page.getByRole('button', { name: 'BB', exact: true }).click()
   await page.getByRole('button', { name: 'Check' }).click()
@@ -219,7 +219,7 @@ test('edit hero card — undo reverts', async ({ page }) => {
 test('edit action actor — change H to BB', async ({ page }) => {
   await recordUpToPreflop(page)
   // Record one action so the actor chip exists
-  await page.getByRole('button', { name: 'BTN', exact: true}).click()
+  await page.getByRole('button', { name: 'H', exact: true}).click()
   await page.getByRole('button', { name: 'Call' }).click()
 
   await page.locator('[data-chip-id="action:Preflop:0:actor"]').click()
@@ -232,7 +232,7 @@ test('edit action actor — change H to BB', async ({ page }) => {
 
 test('edit action actor — undo reverts', async ({ page }) => {
   await recordUpToPreflop(page)
-  await page.getByRole('button', { name: 'BTN', exact: true}).click()
+  await page.getByRole('button', { name: 'H', exact: true}).click()
   await page.getByRole('button', { name: 'Call' }).click()
 
   await page.locator('[data-chip-id="action:Preflop:0:actor"]').click()
@@ -247,7 +247,7 @@ test('edit action actor — undo reverts', async ({ page }) => {
 
 test('edit verb — change Call to Fold', async ({ page }) => {
   await recordUpToPreflop(page)
-  await page.getByRole('button', { name: 'BTN', exact: true}).click()
+  await page.getByRole('button', { name: 'H', exact: true}).click()
   await page.getByRole('button', { name: 'Call' }).click()
 
   await page.locator('[data-chip-id="action:Preflop:0:verb"]').click()
@@ -261,7 +261,7 @@ test('edit verb — change Call to Fold', async ({ page }) => {
 
 test('edit verb — change Call to Raise with amount', async ({ page }) => {
   await recordUpToPreflop(page)
-  await page.getByRole('button', { name: 'BTN', exact: true}).click()
+  await page.getByRole('button', { name: 'H', exact: true}).click()
   await page.getByRole('button', { name: 'Call' }).click()
 
   await page.locator('[data-chip-id="action:Preflop:0:verb"]').click()
@@ -281,7 +281,7 @@ test('edit verb — facing a bet shows call/raise/fold/all-in', async ({ page })
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Raise', exact: true }).click()
   await page.locator('input[type="number"]').fill('20')
   await page.getByRole('button', { name: 'OK' }).click()
-  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'BTN', exact: true }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'H', exact: true }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Call', exact: true }).click()
 
   // Now edit the hero's verb (action:Preflop:1:verb, facing a bet)
@@ -299,7 +299,7 @@ test('edit verb — facing a bet shows call/raise/fold/all-in', async ({ page })
 
 test('edit verb — change raise amount', async ({ page }) => {
   await recordUpToPreflop(page)
-  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'BTN', exact: true}).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'H', exact: true}).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Raise', exact: true }).click()
   await page.locator('input[type="number"]').fill('30')
   await page.getByRole('button', { name: 'OK' }).click()
@@ -314,7 +314,7 @@ test('edit verb — change raise amount', async ({ page }) => {
 
 test('edit verb — change Raise to Call (drops amount)', async ({ page }) => {
   await recordUpToPreflop(page)
-  await page.getByRole('button', { name: 'BTN', exact: true}).click()
+  await page.getByRole('button', { name: 'H', exact: true}).click()
   await page.getByRole('button', { name: 'Raise' }).click()
   await page.locator('input[type="number"]').fill('30')
   await page.getByRole('button', { name: 'OK' }).click()
@@ -327,7 +327,7 @@ test('edit verb — change Raise to Call (drops amount)', async ({ page }) => {
 
 test('edit verb — all in with amount (enter amount)', async ({ page }) => {
   await recordUpToPreflop(page)
-  await page.getByRole('button', { name: 'BTN', exact: true}).click()
+  await page.getByRole('button', { name: 'H', exact: true}).click()
   await page.getByRole('button', { name: 'Call' }).click()
 
   await page.locator('[data-chip-id="action:Preflop:0:verb"]').click()
@@ -343,7 +343,7 @@ test('edit verb — all in with amount (enter amount)', async ({ page }) => {
 
 test('edit verb — all in with skip (no amount)', async ({ page }) => {
   await recordUpToPreflop(page)
-  await page.getByRole('button', { name: 'BTN', exact: true}).click()
+  await page.getByRole('button', { name: 'H', exact: true}).click()
   await page.getByRole('button', { name: 'Call' }).click()
 
   await page.locator('[data-chip-id="action:Preflop:0:verb"]').click()
@@ -355,7 +355,7 @@ test('edit verb — all in with skip (no amount)', async ({ page }) => {
 
 test('edit verb — undo reverts change', async ({ page }) => {
   await recordUpToPreflop(page)
-  await page.getByRole('button', { name: 'BTN', exact: true}).click()
+  await page.getByRole('button', { name: 'H', exact: true}).click()
   await page.getByRole('button', { name: 'Call' }).click()
 
   await page.locator('[data-chip-id="action:Preflop:0:verb"]').click()
@@ -370,7 +370,7 @@ test('edit verb — undo reverts change', async ({ page }) => {
 
 test('cancel edit — closes overlay without change', async ({ page }) => {
   await recordUpToPreflop(page)
-  await page.getByRole('button', { name: 'BTN', exact: true}).click()
+  await page.getByRole('button', { name: 'H', exact: true}).click()
   await page.getByRole('button', { name: 'Call' }).click()
 
   await page.locator('[data-chip-id="action:Preflop:0:verb"]').click()
@@ -388,7 +388,7 @@ test('cancel edit — closes overlay without change', async ({ page }) => {
 test('edit showdown actor — restricted to players in the hand', async ({ page }) => {
   await recordMinimalComplete(page)
   await page.getByRole('button', { name: '→ Showdown' }).click()
-  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'BTN', exact: true }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'H', exact: true }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Wins' }).click()
 
   await page.locator('[data-chip-id="showdown:0:actor"]').click()
@@ -408,7 +408,7 @@ test('edit showdown actor — restricted to players in the hand', async ({ page 
 test('edit showdown verb — change Wins to Loses', async ({ page }) => {
   await recordMinimalComplete(page)
   await page.getByRole('button', { name: '→ Showdown' }).click()
-  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'BTN', exact: true}).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'H', exact: true}).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Wins' }).click()
 
   await page.locator('[data-chip-id="showdown:0:verb"]').click()
@@ -422,7 +422,7 @@ test('edit showdown verb — change Wins to Loses', async ({ page }) => {
 test('edit showdown card 0 — swap to different card', async ({ page }) => {
   await recordMinimalComplete(page)
   await page.getByRole('button', { name: '→ Showdown' }).click()
-  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'BB', exact: true }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'V', exact: true }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Shows' }).click()
   await page.locator('[data-testid="card-picker"]').getByRole('button', { name: '2♣', exact: true }).click()
   await page.locator('[data-testid="card-picker"]').getByRole('button', { name: '3♣', exact: true }).click()
@@ -443,7 +443,7 @@ test('edit showdown card 0 — swap to different card', async ({ page }) => {
 test('edit showdown card 1 — swap', async ({ page }) => {
   await recordMinimalComplete(page)
   await page.getByRole('button', { name: '→ Showdown' }).click()
-  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'BB', exact: true }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'V', exact: true }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Shows' }).click()
   await page.locator('[data-testid="card-picker"]').getByRole('button', { name: '2♣', exact: true }).click()
   await page.locator('[data-testid="card-picker"]').getByRole('button', { name: '3♣', exact: true }).click()
@@ -482,7 +482,7 @@ test('edit note chip — change note text', async ({ page }) => {
 
 test('save succeeds after chip edits', async ({ page }) => {
   await recordUpToPreflop(page)
-  await page.getByRole('button', { name: 'BTN', exact: true}).click()
+  await page.getByRole('button', { name: 'H', exact: true}).click()
   await page.getByRole('button', { name: 'Call' }).click()
 
   // Edit the verb
