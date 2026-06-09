@@ -4,6 +4,7 @@ export interface HandSummary {
   heroPosition: string
   streetReached: string
   stakes?: string
+  totalPot?: number
 }
 
 export interface ListedHand {

@@ -1,5 +1,6 @@
 import { parseHand } from '../core/parser'
 import { formatCard } from '../core/cards'
+import { computePotAtStreetStart } from '../core/engine'
 import type { HandSummary } from './repository'
 
 const STREET_REACHED_ORDER = ['Preflop', 'Flop', 'Turn', 'River'] as const
@@ -14,5 +15,13 @@ export function summaryFromRaw(raw: string): HandSummary {
     ? lastStreet
     : 'Preflop'
   const stakes = state.stakes
-  return { board, heroCards, heroPosition, streetReached, ...(stakes !== undefined ? { stakes } : {}) }
+  const totalPot = computePotAtStreetStart(state, state.streets.length)
+  return {
+    board,
+    heroCards,
+    heroPosition,
+    streetReached,
+    ...(stakes !== undefined ? { stakes } : {}),
+    ...(totalPot > 0 ? { totalPot } : {}),
+  }
 }
