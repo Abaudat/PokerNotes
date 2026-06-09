@@ -534,11 +534,19 @@ function computeStreetContributions(
 ): number {
   const contributions = new Map<Position, number>()
   let currentBet = 0
+  // Track the last raiser whose bet may be uncalled. If a call follows, clear this.
+  // capAt: what to reduce the raiser's contribution to if their raise is never called.
+  //   - 0 when the raise is the first voluntary bet (no prior voluntary bet to "call")
+  //   - previousBet when raising over an earlier voluntary bet (raiser kept the call portion)
+  let lastRaiser: Position | null = null
+  let lastRaiserCapAt = 0
+  let voluntaryBetEstablished = false
 
   if (streetName === 'Preflop') {
     contributions.set('SB', sbAmount)
     contributions.set('BB', bbAmount)
     currentBet = bbAmount
+    // Forced blinds are not voluntary bets; voluntaryBetEstablished stays false
   }
 
   for (const action of actions) {
@@ -549,21 +557,38 @@ function computeStreetContributions(
         break
       case 'c':
         contributions.set(action.actor, currentBet)
+        lastRaiser = null
         break
       case 'r':
       case 'b':
         if (action.amount !== undefined) {
+          lastRaiserCapAt = voluntaryBetEstablished ? currentBet : 0
+          lastRaiser = action.actor
           contributions.set(action.actor, action.amount)
           currentBet = action.amount
+          voluntaryBetEstablished = true
         }
         break
       case 'a':
         if (action.amount !== undefined) {
+          if (action.amount > currentBet) {
+            lastRaiserCapAt = voluntaryBetEstablished ? currentBet : 0
+            lastRaiser = action.actor
+            voluntaryBetEstablished = true
+            currentBet = action.amount
+          } else {
+            // All-in for less than current bet acts as a call (cannot reopen action)
+            lastRaiser = null
+          }
           contributions.set(action.actor, action.amount)
-          if (action.amount > currentBet) currentBet = action.amount
         }
         break
     }
+  }
+
+  // If the final bet/raise was never called, the raiser gets back the uncalled portion
+  if (lastRaiser !== null) {
+    contributions.set(lastRaiser, lastRaiserCapAt)
   }
 
   let total = 0

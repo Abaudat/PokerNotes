@@ -136,6 +136,55 @@ describe('computePotAtStreetStart — edge cases', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Unanswered raise tests (issue #34)
+// ---------------------------------------------------------------------------
+
+describe('computePotAtStreetStart — unanswered raises', () => {
+  it('folded raise: UTG raises, everyone folds — only blinds count', () => {
+    // Stakes 1/2, UTG raises 100, SB folds, BB folds → pot = SB(1) + BB(2) = 3
+    const state = parseHand(
+      '[Stakes: 1/2]\nBoard: As 8h Td\nHero: UTG AhKs\nPreflop: UTG r 100, SB f, BB f',
+    )
+    expect(computePotAtStreetStart(state, 1)).toBe(3)
+  })
+
+  it('folded reraise: UTG reraises after SB raise, SB folds — UTG capped at SB level', () => {
+    // Stakes 1/2, UTG raises 10, SB raises 50, UTG raises 200, SB folds
+    // BB(2) + SB(50) + UTG(50 = capped at SB's raise) = 102
+    const state = parseHand(
+      '[Stakes: 1/2]\nBoard: As 8h Td\nHero: UTG AhKs\nPreflop: UTG r 10, SB r 50, UTG r 200, SB f',
+    )
+    expect(computePotAtStreetStart(state, 1)).toBe(102)
+  })
+
+  it('uncalled flop bet returns entire bet', () => {
+    // Preflop: H r 15, BB c → pot = 32 at flop. Flop: BB b 20, H f → BB's 20 is returned
+    const state = parseHand(
+      '[Stakes: 2/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15, BB c\nFlop: BB b 20, H f',
+    )
+    expect(computePotAtStreetStart(state, 2)).toBe(32)
+  })
+
+  it('uncalled flop raise: caller wins only contested portion', () => {
+    // Preflop pot = 32. Flop: BB b 20, H r 80, BB f → H capped at BB's 20.
+    // Flop contributions = BB(20) + H(20) = 40. Total = 32 + 40 = 72
+    const state = parseHand(
+      '[Stakes: 2/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15, BB c\nFlop: BB b 20, H r 80, BB f',
+    )
+    expect(computePotAtStreetStart(state, 2)).toBe(72)
+  })
+
+  it('showdown pot excludes unanswered raise on river', () => {
+    // Preflop H r 15 BB c (pot=32). Flop BB b 10 H c (pot=52). River BB b 30 H r 100 BB f
+    // River: H capped at BB's 30. River contributions = BB(30)+H(30)=60. Total = 52+60 = 112
+    const state = parseHand(
+      '[Stakes: 2/5]\nBoard: As 8h Td 2c 3d\nHero: BTN AhKs\nPreflop: H r 15, BB c\nFlop: BB b 10, H c\nRiver: BB b 30, H r 100, BB f',
+    )
+    expect(computePotAtStreetStart(state, state.streets.length)).toBe(112)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Custom stakes tests
 // ---------------------------------------------------------------------------
 
