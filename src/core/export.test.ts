@@ -84,10 +84,10 @@ describe('formatForExport', () => {
   it('includes all street names', () => {
     const ast = parseHand(SAMPLE_RAW)
     const output = formatForExport(ast)
-    expect(output).toContain('Preflop:')
-    expect(output).toContain('Flop:')
-    expect(output).toContain('Turn:')
-    expect(output).toContain('River:')
+    expect(output).toContain('Preflop (')
+    expect(output).toContain('Flop (')
+    expect(output).toContain('Turn (')
+    expect(output).toContain('River (')
   })
 
   it('identifies Hero actor as "Hero" in action lines', () => {
@@ -109,10 +109,15 @@ describe('formatForExport', () => {
     expect(lines[0]).toMatch(/\$2\/\$5/)
     expect(lines[1]).toBe('Board: A♠ 8♥ T♦')
     expect(lines[2]).toBe('Hero (BTN): A♥ K♠')
-    expect(lines[3]).toBe('Preflop: Hero raises $15, BB calls')
-    expect(lines[4]).toBe('Flop: BB checks, Hero bets $20, BB calls')
-    expect(lines[5]).toBe('Turn: BB checks, Hero checks')
-    expect(lines[6]).toBe('River: BB bets $40, Hero folds')
+    // Preflop: SB implicit 2, BB implicit 5, H raises to 15 → BB calls to 15, SB folds (leaves 2)
+    // Preflop pot = 0 (nothing contributed before Preflop)
+    expect(lines[3]).toBe('Preflop (Pot: 0): Hero raises $15, BB calls')
+    // Pot at Flop = SB(2) + BB(15) + H(15) = 32
+    expect(lines[4]).toBe('Flop (Pot: 32): BB checks, Hero bets $20, BB calls')
+    // Pot at Turn = 32 + BB(20) + H(20) = 72
+    expect(lines[5]).toBe('Turn (Pot: 72): BB checks, Hero checks')
+    // Pot at River = 72 (Turn had no contributions)
+    expect(lines[6]).toBe('River (Pot: 72): BB bets $40, Hero folds')
   })
 
   it('works without stakes', () => {
