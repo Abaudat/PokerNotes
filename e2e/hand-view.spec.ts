@@ -28,12 +28,12 @@ test('View shows stakes in the metadata line', async ({ page }) => {
 
 // Test 31
 test('View shows the hero position', async ({ page }) => {
-  await expect(page.getByText('BTN')).toBeVisible()
+  await expect(page.getByText('BTN', { exact: true })).toBeVisible()
 })
 
 // Test 32
-test('View shows a preflop action\'s actor name', async ({ page }) => {
-  await expect(page.getByText('Hero', { exact: true })).toBeVisible()
+test('View shows a preflop action\'s actor with its hero marker', async ({ page }) => {
+  await expect(page.getByText('H (BTN)')).toBeVisible()
 })
 
 // Test 33

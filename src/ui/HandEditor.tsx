@@ -11,6 +11,7 @@ import {
   legalActorsForActionSlot,
   legalVerbsForActionSlot,
   legalShowdownActorsForSlot,
+  villainPosition,
   HERO_POSITIONS,
   createBlank,
   setStakes,
@@ -35,9 +36,9 @@ import {
   editShowdownVerb,
   editShowdownCard,
 } from '../core/engine'
-import { buildEditorView, POSITION_COLORS, HERO_COLOR } from '../core/render'
+import { buildEditorView, POSITION_COLORS, HERO_COLOR, VILLAIN_COLOR } from '../core/render'
 import type { Chip } from '../core/render'
-import type { HandState, Verb, Card, ShowdownVerb, StreetName } from '../core/types'
+import type { HandState, Verb, Card, ShowdownVerb, StreetName, Position } from '../core/types'
 
 const SUIT_COLORS: Record<string, string> = { s: '#94a3b8', h: '#f87171', d: '#fb923c', c: '#4ade80' }
 const VERB_LABELS: Record<Verb, string> = {
@@ -61,8 +62,18 @@ function toCard(code: string): Card {
 }
 
 function actorColor(actor: string): string {
-  if (actor === 'H') return HERO_COLOR
-  return POSITION_COLORS[actor as Exclude<keyof typeof POSITION_COLORS, 'H'>] ?? '#6b7280'
+  return POSITION_COLORS[actor as keyof typeof POSITION_COLORS] ?? '#6b7280'
+}
+
+/**
+ * Label for an actor-suggestion button: the hero seat always reads "H", and the
+ * lone villain reads "V" once postflop (when the heads-up villain is known).
+ * Other seats keep their position name.
+ */
+function suggestionLabel(state: HandState, pos: Position, allowVillain: boolean): string {
+  if (pos === state.hero?.position) return 'H'
+  if (allowVillain && pos === villainPosition(state)) return 'V'
+  return pos
 }
 
 function CardGrid({
@@ -320,8 +331,9 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
       return { ...base, background: HERO_COLOR, color: '#000', border: 'none', fontWeight: 700 }
     }
     if (chip.kind === 'action-actor' || chip.kind === 'showdown-actor') {
-      const color = actorColor(chip.meta?.actor ?? '')
-      return { ...base, color, fontWeight: chip.meta?.actor === 'H' ? 700 : 500 }
+      const marker = chip.meta?.marker
+      const color = marker === 'H' ? HERO_COLOR : marker === 'V' ? VILLAIN_COLOR : actorColor(chip.meta?.actor ?? '')
+      return { ...base, color, fontWeight: marker === 'H' ? 700 : marker === 'V' ? 600 : 500 }
     }
     if (chip.kind === 'action-verb' || chip.kind === 'showdown-verb') {
       return { ...base, color: 'var(--text-muted)' }
@@ -575,7 +587,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     stepContent = (
       <>
         <ButtonRow>{step.options.map((actor) => (
-          <button key={actor} className="btn-secondary" onClick={() => apply(beginAction(state, currentStreet, actor))}>{actor}</button>
+          <button key={actor} className="btn-secondary" onClick={() => apply(beginAction(state, currentStreet, actor))}>{suggestionLabel(state, actor, currentStreet !== 'Preflop')}</button>
         ))}</ButtonRow>
         {(step.canAdvance || step.canShowdown || step.canSave) && (
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
@@ -605,7 +617,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     stepContent = (
       <>
         <ButtonRow>{step.options.map((actor) => (
-          <button key={actor} className="btn-secondary" onClick={() => apply(beginShowdownActor(state, actor))}>{actor}</button>
+          <button key={actor} className="btn-secondary" onClick={() => apply(beginShowdownActor(state, actor))}>{suggestionLabel(state, actor, true)}</button>
         ))}</ButtonRow>
         {step.canSave && (
           <div style={{ marginTop: '0.5rem' }}>

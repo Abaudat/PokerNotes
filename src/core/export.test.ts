@@ -2,13 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { formatForExport } from './export'
 import { parseHand } from './parser'
 
+// Hero is BTN, heads-up against BB by the flop → BTN marked H, BB marked V.
 const SAMPLE_RAW = `[Stakes: $2/$5]
 Board: As 8h Td
 Hero: BTN AhKs
-Preflop: H r 15, BB c
-Flop: BB x, H b 20, BB c
-Turn: BB x, H x
-River: BB b 40, H f`
+Preflop: BTN r 15, BB c
+Flop: BB x, BTN b 20, BB c
+Turn: BB x, BTN x
+River: BB b 40, BTN f`
 
 describe('formatForExport', () => {
   it('produces a non-empty string', () => {
@@ -90,16 +91,16 @@ describe('formatForExport', () => {
     expect(output).toContain('River (')
   })
 
-  it('identifies Hero actor as "Hero" in action lines', () => {
+  it('marks the hero actor as "H (pos)" in action lines', () => {
     const ast = parseHand(SAMPLE_RAW)
     const output = formatForExport(ast)
-    expect(output).toContain('Hero raises $15')
+    expect(output).toContain('H (BTN) raises $15')
   })
 
-  it('identifies BB actor by position name', () => {
+  it('marks the lone villain as "V (pos)" in action lines', () => {
     const ast = parseHand(SAMPLE_RAW)
     const output = formatForExport(ast)
-    expect(output).toContain('BB calls')
+    expect(output).toContain('V (BB) calls')
   })
 
   it('matches the SPEC example output format', () => {
@@ -109,19 +110,19 @@ describe('formatForExport', () => {
     expect(lines[0]).toMatch(/\$2\/\$5/)
     expect(lines[1]).toBe('Board: A♠ 8♥ T♦')
     expect(lines[2]).toBe('Hero (BTN): A♥ K♠')
-    // Preflop: SB implicit 2, BB implicit 5, H raises to 15 → BB calls to 15, SB folds (leaves 2)
+    // Preflop: SB implicit 2, BB implicit 5, BTN raises to 15 → BB calls to 15, SB folds (leaves 2)
     // Preflop pot = 0 (nothing contributed before Preflop)
-    expect(lines[3]).toBe('Preflop (Pot: 0): Hero raises $15, BB calls')
-    // Pot at Flop = SB(2) + BB(15) + H(15) = 32
-    expect(lines[4]).toBe('Flop (Pot: 32): BB checks, Hero bets $20, BB calls')
-    // Pot at Turn = 32 + BB(20) + H(20) = 72
-    expect(lines[5]).toBe('Turn (Pot: 72): BB checks, Hero checks')
+    expect(lines[3]).toBe('Preflop (Pot: 0): H (BTN) raises $15, V (BB) calls')
+    // Pot at Flop = SB(2) + BB(15) + BTN(15) = 32
+    expect(lines[4]).toBe('Flop (Pot: 32): V (BB) checks, H (BTN) bets $20, V (BB) calls')
+    // Pot at Turn = 32 + BB(20) + BTN(20) = 72
+    expect(lines[5]).toBe('Turn (Pot: 72): V (BB) checks, H (BTN) checks')
     // Pot at River = 72 (Turn had no contributions)
-    expect(lines[6]).toBe('River (Pot: 72): BB bets $40, Hero folds')
+    expect(lines[6]).toBe('River (Pot: 72): V (BB) bets $40, H (BTN) folds')
   })
 
   it('works without stakes', () => {
-    const raw = `Board: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15, BB c`
+    const raw = `Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15, BB c`
     const ast = parseHand(raw)
     const output = formatForExport(ast)
     expect(output).toContain('Board:')
@@ -129,7 +130,7 @@ describe('formatForExport', () => {
   })
 
   it('works with empty board', () => {
-    const raw = `Board:\nHero: BTN AhKs\nPreflop: H r 15, BB f`
+    const raw = `Board:\nHero: BTN AhKs\nPreflop: BTN r 15, BB f`
     const ast = parseHand(raw)
     const output = formatForExport(ast)
     expect(output).toContain('Board:')

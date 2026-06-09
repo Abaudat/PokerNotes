@@ -1,13 +1,12 @@
 import { formatCard, SUIT_GLYPHS } from './cards'
-import { computePotAtStreetStart } from './engine'
-import type { HandState, Position, StreetName, Verb, Card } from './types'
+import { computePotAtStreetStart, markerFor, markerLabel } from './engine'
+import type { HandState, Position, StreetName, Verb, Card, Marker } from './types'
 
 export const HERO_COLOR = '#f59e0b'
+/** Distinct colour for the lone villain's marked seat. */
+export const VILLAIN_COLOR = '#6b7280'
 
-export const POSITION_COLORS: Record<Exclude<Position, 'H'>, string> = {
-  V: '#6b7280',
-  V2: '#9ca3af',
-  V3: '#d1d5db',
+export const POSITION_COLORS: Record<Position, string> = {
   UTG: '#ef4444',
   'UTG+1': '#f97316',
   'UTG+2': '#eab308',
@@ -22,8 +21,14 @@ export const POSITION_COLORS: Record<Exclude<Position, 'H'>, string> = {
 }
 
 function actorColor(position: string): string {
-  if (position === 'H') return HERO_COLOR
-  return POSITION_COLORS[position as Exclude<Position, 'H'>] ?? '#6b7280'
+  return POSITION_COLORS[position as Position] ?? VILLAIN_COLOR
+}
+
+/** Colour for a seat, honouring its derived hero/villain marker. */
+function markedColor(position: string, marker?: Marker): string {
+  if (marker === 'H') return HERO_COLOR
+  if (marker === 'V') return VILLAIN_COLOR
+  return actorColor(position)
 }
 
 // ===========================================================================
@@ -33,9 +38,13 @@ function actorColor(position: string): string {
 export interface ActionViewModel {
   id: string
   actor: string
+  /** Display label honouring the hero/villain marker, e.g. "H (SB)" / "V (BB)" */
+  label: string
+  marker?: Marker
   verb: Verb
   amount?: number
   isHero: boolean
+  isVillain: boolean
   color: string
 }
 
@@ -46,7 +55,7 @@ export interface StreetViewModel {
 }
 
 export interface HeroViewModel {
-  position: Position
+  position: string
   cards: [string, string]
   isHero: true
   label: 'HERO'
@@ -56,9 +65,12 @@ export interface HeroViewModel {
 export interface ShowdownActionViewModel {
   id: string
   actor: string
+  label: string
+  marker?: Marker
   verb: string
   cards?: [string, string]
   isHero: boolean
+  isVillain: boolean
   color: string
 }
 
@@ -74,7 +86,7 @@ export interface HandViewModel {
 export function buildHandViewModel(state: HandState): HandViewModel {
   const board = (state.board ?? []).map(formatCard)
 
-  const heroPosition = state.hero?.position ?? 'H'
+  const heroPosition = state.hero?.position ?? ''
   const heroCards: [string, string] = state.hero?.cards
     ? [formatCard(state.hero.cards[0]), formatCard(state.hero.cards[1])]
     : ['', '']
@@ -91,13 +103,17 @@ export function buildHandViewModel(state: HandState): HandViewModel {
     name: street.name,
     potAtStart: computePotAtStreetStart(state, i),
     actions: street.actions.map((action) => {
+      const marker = markerFor(state, action.actor)
       const vm: ActionViewModel = {
         id: action.id,
         actor: action.actor,
+        label: markerLabel(action.actor, marker),
         verb: action.verb ?? 'x',
-        isHero: action.actor === 'H',
-        color: actorColor(action.actor),
+        isHero: marker === 'H',
+        isVillain: marker === 'V',
+        color: markedColor(action.actor, marker),
       }
+      if (marker) vm.marker = marker
       if (action.amount !== undefined) vm.amount = action.amount
       return vm
     }),
@@ -105,13 +121,17 @@ export function buildHandViewModel(state: HandState): HandViewModel {
 
   const showdown = state.showdown
     ? state.showdown.map((sa) => {
+        const marker = markerFor(state, sa.actor)
         const vm: ShowdownActionViewModel = {
           id: sa.id,
           actor: sa.actor,
+          label: markerLabel(sa.actor, marker),
           verb: sa.verb ?? '',
-          isHero: sa.actor === 'H',
-          color: actorColor(sa.actor),
+          isHero: marker === 'H',
+          isVillain: marker === 'V',
+          color: markedColor(sa.actor, marker),
         }
+        if (marker) vm.marker = marker
         if (sa.cards) vm.cards = [formatCard(sa.cards[0]), formatCard(sa.cards[1])]
         return vm
       })
@@ -162,6 +182,7 @@ export interface ChipMeta {
   verb?: Verb
   amount?: number
   actor?: string
+  marker?: Marker
 }
 
 export interface Chip {
@@ -276,9 +297,9 @@ export function buildEditorView(state: HandState): ChipLine[] {
       {
         id: 'hero:pos',
         kind: 'hero-pos',
-        text: state.hero.position,
+        text: markerLabel(state.hero.position, 'H'),
         editKind: 'hero-pos',
-        meta: { actor: state.hero.position },
+        meta: { actor: state.hero.position, marker: 'H' },
       },
     ]
     if (state.hero.cards) {
@@ -313,14 +334,15 @@ export function buildEditorView(state: HandState): ChipLine[] {
     })
     const chips: Chip[] = []
     street.actions.forEach((action, i) => {
+      const marker = markerFor(state, action.actor)
       chips.push({
         id: `action:${street.name}:${i}:actor`,
         kind: 'action-actor',
-        text: action.actor,
+        text: markerLabel(action.actor, marker),
         editKind: 'actor',
         street: street.name,
         index: i,
-        meta: { actor: action.actor },
+        meta: { actor: action.actor, marker },
       })
       if (action.verb !== undefined) {
         chips.push({
@@ -356,13 +378,14 @@ export function buildEditorView(state: HandState): ChipLine[] {
   if (state.showdown !== undefined) {
     const chips: Chip[] = []
     state.showdown.forEach((entry, i) => {
+      const marker = markerFor(state, entry.actor)
       chips.push({
         id: `showdown:${i}:actor`,
         kind: 'showdown-actor',
-        text: entry.actor,
+        text: markerLabel(entry.actor, marker),
         editKind: 'showdown-actor',
         index: i,
-        meta: { actor: entry.actor },
+        meta: { actor: entry.actor, marker },
       })
       if (entry.verb !== undefined) {
         chips.push({

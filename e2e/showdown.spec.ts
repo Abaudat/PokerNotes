@@ -1,7 +1,10 @@
 import { test, expect } from '@playwright/test'
 import { clearFirestoreHands, getTestUserUid } from './helpers'
 
-/** Records up to preflop (no board, BTN, A♥ K♠, Hero calls) — ends at AWAIT_ACTOR with Save/Showdown available. */
+/**
+ * Records up to preflop heads-up (no board, hero BTN A♥ K♠ calls, BB checks) —
+ * ends at AWAIT_ACTOR with Save/Showdown available. BB is the lone villain → marked V.
+ */
 async function recordPreflopForShowdown(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: '+ New hand' }).click()
   await page.getByRole('button', { name: '1/2' }).click()
@@ -12,6 +15,8 @@ async function recordPreflopForShowdown(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: /Done/ }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'H', exact: true }).click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Call' }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'BB', exact: true }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Check' }).click()
 }
 
 test.beforeEach(async ({ page }) => {

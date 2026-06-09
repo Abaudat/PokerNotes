@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { buildHandViewModel, HERO_COLOR, POSITION_COLORS } from '../core/render'
+import { buildHandViewModel, HERO_COLOR } from '../core/render'
 import { formatForExport } from '../core/export'
 import { SUIT_GLYPHS } from '../core/cards'
 import type { SavedHand } from '../app/App'
-import type { Position } from '../core/types'
 
 const SUIT_COLORS: Record<string, string> = {
   '♠': '#94a3b8',
@@ -24,11 +23,6 @@ function formatCardGlyph(code: string): React.ReactNode {
       <span style={{ color }}>{glyph}</span>
     </span>
   )
-}
-
-function actorColor(actor: string): string {
-  if (actor === 'H') return HERO_COLOR
-  return POSITION_COLORS[actor as Exclude<Position, 'H'>] ?? '#6b7280'
 }
 
 const VERB_LABELS: Record<string, string> = {
@@ -139,16 +133,14 @@ export default function HandView({ hand, onBack, onEdit }: Props) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
             {street.actions.map((action) => {
-              const color = actorColor(action.actor)
-              const label = action.isHero ? 'Hero' : action.actor
               const verbWord = VERB_LABELS[action.verb] ?? action.verb
               const amountStr = action.amount !== undefined
                 ? action.verb === 'a' ? ` ${action.amount} eff` : ` $${action.amount}`
                 : ''
               return (
                 <div key={action.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
-                  <span style={{ color, fontWeight: action.isHero ? 700 : 500, minWidth: 60 }}>
-                    {label}
+                  <span style={{ color: action.color, fontWeight: action.isHero ? 700 : action.isVillain ? 600 : 500, minWidth: 70 }}>
+                    {action.label}
                   </span>
                   <span style={{ color: 'var(--text-muted)' }}>{verbWord}{amountStr}</span>
                 </div>
@@ -173,11 +165,10 @@ export default function HandView({ hand, onBack, onEdit }: Props) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
             {vm.showdown.map((sa) => {
-              const label = sa.isHero ? 'Hero' : sa.actor
               return (
                 <div key={sa.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
-                  <span style={{ color: sa.color, fontWeight: sa.isHero ? 700 : 500, minWidth: 60 }}>
-                    {label}
+                  <span style={{ color: sa.color, fontWeight: sa.isHero ? 700 : sa.isVillain ? 600 : 500, minWidth: 70 }}>
+                    {sa.label}
                   </span>
                   <span style={{ color: 'var(--text-muted)' }}>
                     {sa.verb}

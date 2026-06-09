@@ -3,13 +3,14 @@ import { buildHandViewModel, buildEditorView, POSITION_COLORS, HERO_COLOR } from
 import { parseHand } from './parser'
 import type { Chip } from './render'
 
+// Hero is BTN, heads-up against BB by the flop → BTN marked H, BB marked V.
 const SAMPLE_RAW = `[Stakes: $2/$5]
 Board: As 8h Td
 Hero: BTN AhKs
-Preflop: H r 15, BB c
-Flop: BB x, H b 20, BB c
-Turn: BB x, H x
-River: BB b 40, H f`
+Preflop: BTN r 15, BB c
+Flop: BB x, BTN b 20, BB c
+Turn: BB x, BTN x
+River: BB b 40, BTN f`
 
 // ===========================================================================
 // buildHandViewModel
@@ -21,7 +22,7 @@ describe('buildHandViewModel', () => {
   })
 
   it('stakes is undefined when not present', () => {
-    expect(buildHandViewModel(parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15, BB c')).stakes).toBeUndefined()
+    expect(buildHandViewModel(parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15, BB c')).stakes).toBeUndefined()
   })
 
   it('maps board cards to display codes', () => {
@@ -29,7 +30,7 @@ describe('buildHandViewModel', () => {
   })
 
   it('empty board yields empty array', () => {
-    expect(buildHandViewModel(parseHand('Board:\nHero: BTN AhKs\nPreflop: H r 15, BB c')).board).toEqual([])
+    expect(buildHandViewModel(parseHand('Board:\nHero: BTN AhKs\nPreflop: BTN r 15, BB c')).board).toEqual([])
   })
 
   it('Hero is flagged with HERO color and label', () => {
@@ -47,22 +48,48 @@ describe('buildHandViewModel', () => {
 
   it('actions carry actor, verb, optional amount and isHero', () => {
     const pre = buildHandViewModel(parseHand(SAMPLE_RAW)).streets[0].actions
-    expect(pre[0]).toMatchObject({ actor: 'H', verb: 'r', amount: 15, isHero: true })
+    expect(pre[0]).toMatchObject({ actor: 'BTN', verb: 'r', amount: 15, isHero: true })
     expect(pre[1]).toMatchObject({ actor: 'BB', verb: 'c', isHero: false })
     expect(pre[1].amount).toBeUndefined()
   })
 
-  it('POSITION_COLORS covers all non-Hero positions; HERO_COLOR is distinct', () => {
-    for (const pos of ['V', 'V2', 'V3', 'UTG', 'UTG+1', 'UTG+2', 'HJ', 'CO', 'BTN', 'SB', 'BB', 'EP', 'MP']) {
+  it('marks the hero seat with an "H (pos)" label', () => {
+    const pre = buildHandViewModel(parseHand(SAMPLE_RAW)).streets[0].actions
+    expect(pre[0].marker).toBe('H')
+    expect(pre[0].label).toBe('H (BTN)')
+    expect(pre[0].color).toBe(HERO_COLOR)
+  })
+
+  it('marks the lone villain seat with a "V (pos)" label, retroactively preflop', () => {
+    const pre = buildHandViewModel(parseHand(SAMPLE_RAW)).streets[0].actions
+    expect(pre[1].marker).toBe('V')
+    expect(pre[1].isVillain).toBe(true)
+    expect(pre[1].label).toBe('V (BB)')
+  })
+
+  it('does not mark a villain when the flop is multiway', () => {
+    // Three players see the flop → no single villain.
+    const vm = buildHandViewModel(
+      parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: CO c, BTN c, BB x\nFlop: BB x, CO x, BTN x'),
+    )
+    const labels = vm.streets[0].actions.map((a) => a.label)
+    expect(labels).toContain('H (BTN)')
+    expect(labels).toContain('CO')
+    expect(labels).toContain('BB')
+    expect(vm.streets[0].actions.every((a) => a.marker !== 'V')).toBe(true)
+  })
+
+  it('POSITION_COLORS covers all real positions; HERO_COLOR is distinct', () => {
+    for (const pos of ['UTG', 'UTG+1', 'UTG+2', 'UTG+3', 'HJ', 'CO', 'BTN', 'SB', 'BB', 'EP', 'MP']) {
       expect((POSITION_COLORS as Record<string, string>)[pos]).toBeDefined()
     }
     expect(Object.values(POSITION_COLORS)).not.toContain(HERO_COLOR)
   })
 
-  it('renders a showdown when present', () => {
-    const vm = buildHandViewModel(parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: H c\nShowdown: V shows QcJd'))
+  it('renders a showdown when present, marking hero/villain', () => {
+    const vm = buildHandViewModel(parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN c, BB x\nShowdown: BB shows QcJd'))
     expect(vm.showdown).toHaveLength(1)
-    expect(vm.showdown![0]).toMatchObject({ actor: 'V', verb: 'shows', cards: ['Qc', 'Jd'] })
+    expect(vm.showdown![0]).toMatchObject({ actor: 'BB', verb: 'shows', cards: ['Qc', 'Jd'], marker: 'V', label: 'V (BB)' })
   })
 })
 
@@ -78,7 +105,7 @@ function chipById(raw: string, id: string): Chip | undefined {
 }
 
 describe('buildEditorView — chip ids and text', () => {
-  const raw = 'Board: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15, BB c'
+  const raw = 'Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15, BB c'
 
   it('stakes chip carries value and editKind', () => {
     const chip = chipById('[Stakes: 2/5]\n' + raw, 'stakes')
@@ -95,43 +122,43 @@ describe('buildEditorView — chip ids and text', () => {
 
   it('board:add chip appears below 5 cards, not at 5', () => {
     expect(chipById(raw, 'board:add')).toBeDefined()
-    expect(chipById('Board: As 8h Td Jc 2s\nHero: BTN AhKs\nPreflop: H x', 'board:add')).toBeUndefined()
+    expect(chipById('Board: As 8h Td Jc 2s\nHero: BTN AhKs\nPreflop: BTN x', 'board:add')).toBeUndefined()
   })
 
   it('empty board shows a "No board" label and an add chip', () => {
-    const line = buildEditorView(parseHand('Board:\nHero: BTN AhKs\nPreflop: H x')).find((l) => l.key === 'board:empty')!
+    const line = buildEditorView(parseHand('Board:\nHero: BTN AhKs\nPreflop: BTN x')).find((l) => l.key === 'board:empty')!
     expect(line.chips[0].text).toBe('No board')
     expect(line.chips.some((c) => c.id === 'board:add')).toBe(true)
   })
 
-  it('hero position and packed cards become chips', () => {
-    expect(chipById(raw, 'hero:pos')?.text).toBe('BTN')
+  it('hero position chip is marked H (pos)', () => {
+    expect(chipById(raw, 'hero:pos')?.text).toBe('H (BTN)')
     expect(chipById(raw, 'hero:card:0')?.text).toBe('A♥')
     expect(chipById(raw, 'hero:card:1')?.text).toBe('K♠')
   })
 
-  it('action chips carry actor and verb (with amount)', () => {
-    expect(chipById(raw, 'action:Preflop:0:actor')?.text).toBe('H')
+  it('action chips carry the marked actor and verb (with amount)', () => {
+    expect(chipById(raw, 'action:Preflop:0:actor')?.text).toBe('H (BTN)')
     expect(chipById(raw, 'action:Preflop:0:verb')?.text).toBe('Raise 15')
-    expect(chipById(raw, 'action:Preflop:1:actor')?.text).toBe('BB')
+    expect(chipById(raw, 'action:Preflop:1:actor')?.text).toBe('V (BB)')
     expect(chipById(raw, 'action:Preflop:1:verb')?.text).toBe('Call')
   })
 
   it('all-in verb chips render with and without amount', () => {
-    expect(chipById('Board: As 8h Td\nHero: BTN AhKs\nPreflop: H all in 200', 'action:Preflop:0:verb')?.text).toBe('All In 200')
-    expect(chipById('Board: As 8h Td\nHero: BTN AhKs\nPreflop: H all in, BB c', 'action:Preflop:0:verb')?.text).toBe('All In')
+    expect(chipById('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN all in 200', 'action:Preflop:0:verb')?.text).toBe('All In 200')
+    expect(chipById('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN all in, BB c', 'action:Preflop:0:verb')?.text).toBe('All In')
   })
 
   it('showdown chips are positional', () => {
-    const sd = 'Board: As 8h Td\nHero: BTN AhKs\nPreflop: H x\nShowdown: H shows QcJd'
-    expect(chipById(sd, 'showdown:0:actor')?.text).toBe('H')
+    const sd = 'Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN x\nShowdown: BTN shows QcJd'
+    expect(chipById(sd, 'showdown:0:actor')?.text).toBe('H (BTN)')
     expect(chipById(sd, 'showdown:0:verb')?.text).toBe('Shows')
     expect(chipById(sd, 'showdown:0:card:0')?.text).toBe('Q♣')
     expect(chipById(sd, 'showdown:0:card:1')?.text).toBe('J♦')
   })
 
   it('notes render as positional note chips', () => {
-    expect(chipById('Board: As 8h Td\n# read\nHero: BTN AhKs\nPreflop: H x', 'note:0')?.text).toBe('# read')
+    expect(chipById('Board: As 8h Td\n# read\nHero: BTN AhKs\nPreflop: BTN x', 'note:0')?.text).toBe('# read')
   })
 
   it('chip ids are stable across calls', () => {
