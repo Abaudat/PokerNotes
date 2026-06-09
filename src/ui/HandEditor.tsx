@@ -461,9 +461,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     } else if (chip.editKind === 'stakes') {
       editContent = (
         <div>{editHeader}
-          <ButtonRow>{STAKES_PRESETS.map((s) => (
-            <button key={s} className="btn-secondary" onClick={() => apply(setStakes(state, s))}>{s}</button>
-          ))}</ButtonRow>
+          <StakesSelector value={state.stakes ?? null} onChange={(s) => apply(setStakes(state, s))} />
         </div>
       )
     } else if (chip.editKind === 'note') {
@@ -512,16 +510,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
       <>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.5rem' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Stakes</span>
-          {STAKES_PRESETS.map((s) => (
-            <button
-              key={s}
-              className={selectedStakes === s ? 'btn-primary' : 'btn-secondary'}
-              style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
-              onClick={() => setSelectedStakes(s)}
-            >
-              {s}
-            </button>
-          ))}
+          <StakesSelector value={selectedStakes} onChange={setSelectedStakes} />
         </div>
         <CardGrid
           usedCards={new Set()}
@@ -714,6 +703,97 @@ const inputStyle: React.CSSProperties = {
   fontSize: '0.875rem',
   outline: 'none',
   fontFamily: 'inherit',
+}
+
+function StakesSelector({ value, onChange }: { value: string | null; onChange: (s: string) => void }) {
+  const isPreset = value !== null && STAKES_PRESETS.includes(value)
+  const isCustomSelected = value !== null && !isPreset
+  const [showCustom, setShowCustom] = useState(false)
+  const [sbInput, setSbInput] = useState('')
+  const [bbInput, setBbInput] = useState('')
+
+  const sbNum = parseInt(sbInput, 10)
+  const bbNum = parseInt(bbInput, 10)
+  const isValidCustom = !isNaN(sbNum) && !isNaN(bbNum) && sbNum >= 1 && bbNum >= 1 && sbNum <= bbNum
+
+  function openCustom() {
+    if (isCustomSelected && value) {
+      const parts = value.split('/')
+      setSbInput(parts[0] ?? '')
+      setBbInput(parts[1] ?? '')
+    }
+    setShowCustom(true)
+  }
+
+  function confirmCustom() {
+    if (!isValidCustom) return
+    onChange(`${sbNum}/${bbNum}`)
+    setShowCustom(false)
+    setSbInput('')
+    setBbInput('')
+  }
+
+  const smallInputStyle: React.CSSProperties = {
+    width: 56,
+    background: 'var(--surface)',
+    color: 'var(--text)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius)',
+    padding: '0.25rem 0.4rem',
+    fontSize: '0.85rem',
+    outline: 'none',
+    fontFamily: 'inherit',
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      {STAKES_PRESETS.map((s) => (
+        <button
+          key={s}
+          className={value === s ? 'btn-primary' : 'btn-secondary'}
+          style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
+          onClick={() => { onChange(s); setShowCustom(false) }}
+        >
+          {s}
+        </button>
+      ))}
+      {!showCustom ? (
+        <button
+          className={isCustomSelected ? 'btn-primary' : 'btn-secondary'}
+          style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
+          onClick={openCustom}
+        >
+          {isCustomSelected ? value : 'Custom...'}
+        </button>
+      ) : (
+        <>
+          <input
+            data-testid="custom-stakes-sb"
+            type="number"
+            min={1}
+            value={sbInput}
+            onChange={(e) => setSbInput(e.target.value)}
+            placeholder="SB"
+            autoFocus
+            style={smallInputStyle}
+          />
+          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <input
+            data-testid="custom-stakes-bb"
+            type="number"
+            min={1}
+            value={bbInput}
+            onChange={(e) => setBbInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && isValidCustom) confirmCustom() }}
+            placeholder="BB"
+            style={smallInputStyle}
+          />
+          <button className="btn-primary" disabled={!isValidCustom} onClick={confirmCustom}>Set</button>
+          <button className="btn-secondary" onClick={() => setShowCustom(false)}>Cancel</button>
+        </>
+      )}
+    </div>
+  )
 }
 
 function ButtonRow({ children }: { children: ReactNode }) {

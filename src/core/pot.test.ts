@@ -134,3 +134,30 @@ describe('computePotAtStreetStart — edge cases', () => {
     expect(computePotAtStreetStart(state, 1)).toBe(10)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Custom stakes tests
+// ---------------------------------------------------------------------------
+
+describe('computePotAtStreetStart — custom stakes', () => {
+  it('handles 50/100 stakes with three players calling', () => {
+    // SB=50, BB=100; UTG calls(100), SB calls(100), BB checks → pot = 300
+    const state = parseHand(
+      '[Stakes: 50/100]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: UTG c, SB c, BB x',
+    )
+    expect(computePotAtStreetStart(state, 1)).toBe(300)
+  })
+
+  it('handles 3/5 stakes with hero raise and BB call', () => {
+    // SB=3, BB=5; H raises to 20, BB calls → SB=3 left in pot, H=20, BB=20 → pot = 43
+    const state = parseHand(
+      '[Stakes: 3/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: H r 20, BB c',
+    )
+    expect(computePotAtStreetStart(state, 1)).toBe(43)
+  })
+
+  it('parseHand preserves custom stakes string verbatim', () => {
+    const state = parseHand('[Stakes: 3/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: H r 20, BB c')
+    expect(state.stakes).toBe('3/5')
+  })
+})

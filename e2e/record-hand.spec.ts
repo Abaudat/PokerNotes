@@ -107,6 +107,52 @@ test('Saving a hand navigates to the hand detail view', async ({ page }) => {
   await expect(page.getByRole('button', { name: '← History' })).toBeVisible()
 })
 
+test('Custom stakes can be entered and appear in hand detail and history', async ({ page }) => {
+  await page.getByRole('button', { name: 'Custom...' }).click()
+  await page.getByTestId('custom-stakes-sb').fill('3')
+  await page.getByTestId('custom-stakes-bb').fill('5')
+  await page.getByRole('button', { name: 'Set' }).click()
+  await page.getByRole('button', { name: 'No board' }).click()
+  await page.getByRole('button', { name: 'BTN' }).click()
+  await page.getByRole('button', { name: 'A♥' }).click()
+  await page.getByRole('button', { name: 'K♠' }).click()
+  await page.getByRole('button', { name: /Done/ }).click()
+  await page.getByRole('button', { name: 'H', exact: true }).click()
+  await page.getByRole('button', { name: 'Call' }).click()
+  await page.getByRole('button', { name: 'Save hand' }).click()
+  await expect(page.getByText('3/5 NLH')).toBeVisible()
+  await page.getByRole('button', { name: '← History' }).click()
+  await expect(page.getByText('3/5 NLH')).toBeVisible()
+})
+
+test('Custom stakes SB > BB is rejected (Set button disabled)', async ({ page }) => {
+  await page.getByRole('button', { name: 'Custom...' }).click()
+  await page.getByTestId('custom-stakes-sb').fill('10')
+  await page.getByTestId('custom-stakes-bb').fill('5')
+  await expect(page.getByRole('button', { name: 'Set' })).toBeDisabled()
+})
+
+test('after saving a hand with custom stakes, the next new hand has those custom stakes pre-selected', async ({ page }) => {
+  // Record first hand with custom 3/5 stakes
+  await page.getByRole('button', { name: 'Custom...' }).click()
+  await page.getByTestId('custom-stakes-sb').fill('3')
+  await page.getByTestId('custom-stakes-bb').fill('5')
+  await page.getByRole('button', { name: 'Set' }).click()
+  await page.getByRole('button', { name: 'No board' }).click()
+  await page.getByRole('button', { name: 'BTN' }).click()
+  await page.getByRole('button', { name: 'A♥' }).click()
+  await page.getByRole('button', { name: 'K♠' }).click()
+  await page.getByRole('button', { name: /Done/ }).click()
+  await page.getByRole('button', { name: 'H', exact: true }).click()
+  await page.getByRole('button', { name: 'Call' }).click()
+  await page.getByRole('button', { name: 'Save hand' }).click()
+  await page.getByRole('button', { name: '← History' }).click()
+  // Start a new hand — custom stakes 3/5 should be pre-selected
+  await page.getByRole('button', { name: '+ New hand' }).click()
+  await expect(page.getByRole('button', { name: '3/5' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'No board' })).toBeEnabled()
+})
+
 test('new hand inherits stakes from the most recently saved hand', async ({ page }) => {
   // Record first hand with 2/5
   await page.getByRole('button', { name: '2/5' }).click()
