@@ -4,6 +4,7 @@ import { clearFirestoreHands, getTestUserUid } from './helpers'
 /** Records up to preflop (no board, BTN, A♥ K♠, Hero calls) — ends at AWAIT_ACTOR with Save/Showdown available. */
 async function recordPreflopForShowdown(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: '+ New hand' }).click()
+  await page.getByRole('button', { name: '1/2' }).click()
   await page.getByRole('button', { name: 'No board' }).click()
   await page.getByRole('button', { name: 'BTN', exact: true }).click()
   await page.getByRole('button', { name: 'A♥', exact: true }).click()

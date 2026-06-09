@@ -8,10 +8,14 @@ export default defineConfig({
   workers: 1,
   reporter: 'html',
   globalSetup: './e2e/global-setup.ts',
+  expect: {
+    timeout: 3000,
+  },
   use: {
     baseURL: 'http://localhost:5174/PokerNotes/',
     storageState: './e2e/.auth/user.json',
     trace: 'on-first-retry',
+    actionTimeout: 3000,
   },
   projects: [
     {

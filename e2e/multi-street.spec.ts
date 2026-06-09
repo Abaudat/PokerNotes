@@ -4,6 +4,7 @@ import { clearFirestoreHands, getTestUserUid } from './helpers'
 /** Records a new hand with a 3-card board, BTN, A♥ K♥, Hero checks preflop. */
 async function recordPreflopWithBoard(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: '+ New hand' }).click()
+  await page.getByRole('button', { name: '1/2' }).click()
   for (const card of ['A♠', 'K♠', 'Q♠']) {
     await page.getByRole('button', { name: card, exact: true }).click()
   }
