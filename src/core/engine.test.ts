@@ -405,6 +405,74 @@ describe('edit-option restriction (regression)', () => {
 })
 
 // ===========================================================================
+// All-in player handling (issue #26)
+// ===========================================================================
+
+describe('all-in player handling', () => {
+  it('all-in player from preflop is not suggested as an actor on the flop', () => {
+    // HJ went all-in preflop — only SB and BB should be offered on the flop
+    const opts = legalActorsToAct('Flop', [], ['HJ', 'SB', 'BB'], new Set(['HJ']))
+    expect(opts).not.toContain('HJ')
+    expect(opts).toContain('SB')
+    expect(opts).toContain('BB')
+  })
+
+  it('all-in player is not an implicit folder when others bet on a later street', () => {
+    // HJ all-in preflop; flop: SB bets, BB calls. HJ should NOT be marked as folded.
+    const state = st({
+      streets: [
+        street('Preflop', 'HJ all in 50, SB c, BB c'),
+        street('Flop', 'SB b 5, BB c'),
+      ],
+    })
+    expect(foldedActors(state).has('HJ')).toBe(false)
+  })
+
+  it('all-in player from preflop is included in showdown suggestions', () => {
+    // HJ all-in preflop; flop: SB bets, BB calls. HJ is still in the hand at showdown.
+    const state = st({
+      streets: [
+        street('Preflop', 'HJ all in 50, SB c, BB c'),
+        street('Flop', 'SB b 5, BB c'),
+      ],
+      showdown: [],
+    })
+    expect(showdownEligibleActors(state)).toContain('HJ')
+  })
+
+  it('nextStep on the flop does not suggest all-in player from preflop', () => {
+    const state = st({
+      streets: [
+        street('Preflop', 'HJ all in 50, SB c, BB c'),
+        { name: 'Flop' as const, actions: [] },
+      ],
+    })
+    const step = nextStep(state)
+    expect(step.kind).toBe('actor')
+    if (step.kind === 'actor') {
+      expect(step.options).not.toContain('HJ')
+      expect(step.options).toContain('SB')
+    }
+  })
+
+  it('all-in player is excluded from response order when flop has a bet', () => {
+    // On the flop with HJ all-in from preflop, after SB bets only BB should respond
+    const opts = legalActorsToAct('Flop', acts('SB b 5'), ['HJ', 'SB', 'BB'], new Set(['HJ']))
+    expect(opts).not.toContain('HJ')
+    expect(opts).toContain('BB')
+    expect(opts).not.toContain('SB')
+  })
+
+  it('within-street all-in player is not re-queued to respond to a subsequent raise', () => {
+    // HJ goes all-in preflop for $50; CO raises to $100. HJ cannot respond to CO's raise.
+    const opts = legalActorsToAct('Preflop', acts('HJ all in 50, CO r 100'), [])
+    expect(opts).not.toContain('HJ')
+    expect(opts).toContain('SB')
+    expect(opts).toContain('BB')
+  })
+})
+
+// ===========================================================================
 // isComplete
 // ===========================================================================
 
