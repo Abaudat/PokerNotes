@@ -89,6 +89,24 @@ export function hasBetOrRaise(actions: Action[]): boolean {
   return actions.some((a) => a.verb !== undefined && REOPENING_VERBS.has(a.verb))
 }
 
+/** Players who went all-in in the given actions. */
+function allInActorsIn(actions: Action[]): Set<Position> {
+  const s = new Set<Position>()
+  for (const a of actions) if (a.verb === 'a') s.add(a.actor)
+  return s
+}
+
+/** All-in actors accumulated from streets before the given street index. */
+function allInBeforeStreet(state: HandState, streetIndex: number): Set<Position> {
+  const allIn = new Set<Position>()
+  for (let i = 0; i < streetIndex && i < state.streets.length; i++) {
+    for (const a of completeActions(state.streets[i].actions)) {
+      if (a.verb === 'a') allIn.add(a.actor)
+    }
+  }
+  return allIn
+}
+
 // ---------------------------------------------------------------------------
 // Who may act next on a street
 // ---------------------------------------------------------------------------
@@ -105,6 +123,7 @@ function buildReopenOptions(
   spokenBefore: Position[],
   spokenAfter: Set<Position>,
   preflopActors: Position[],
+  cannotAct: Set<Position> = new Set(),
 ): Position[] {
   const order = orderFor(streetName)
   const reopenerIdx = order.indexOf(reopener)
@@ -115,20 +134,21 @@ function buildReopenOptions(
   if (streetName === 'Preflop') {
     const orderedFirst =
       reopenerIdx === -1
-        ? order.filter((p) => !beforeSet.has(p))
-        : order.slice(reopenerIdx + 1)
-    const orderedSecond = order.filter((p) => beforeSet.has(p) && p !== reopener)
-    const genFirst = GENERIC_POSITIONS.filter((p) => !beforeSet.has(p) && p !== reopener)
-    const genSecond = GENERIC_POSITIONS.filter((p) => beforeSet.has(p) && p !== reopener)
+        ? order.filter((p) => !beforeSet.has(p) && !cannotAct.has(p))
+        : order.slice(reopenerIdx + 1).filter((p) => !cannotAct.has(p))
+    const orderedSecond = order.filter((p) => beforeSet.has(p) && p !== reopener && !cannotAct.has(p))
+    const genFirst = GENERIC_POSITIONS.filter((p) => !beforeSet.has(p) && p !== reopener && !cannotAct.has(p))
+    const genSecond = GENERIC_POSITIONS.filter((p) => beforeSet.has(p) && p !== reopener && !cannotAct.has(p))
     responseOrder = [...genFirst, ...orderedFirst, ...genSecond, ...orderedSecond]
   } else {
     const orderedFirst = preflopActors.filter((p) => {
       if (p === reopener) return false
+      if (cannotAct.has(p)) return false
       const pIdx = order.indexOf(p)
       if (reopenerIdx === -1 || pIdx === -1) return !beforeSet.has(p)
       return pIdx > reopenerIdx
     })
-    const orderedSecond = preflopActors.filter((p) => p !== reopener && beforeSet.has(p))
+    const orderedSecond = preflopActors.filter((p) => p !== reopener && beforeSet.has(p) && !cannotAct.has(p))
     responseOrder = [...sortPositions(orderedFirst, order), ...sortPositions(orderedSecond, order)]
   }
 
@@ -151,6 +171,7 @@ export function legalActorsToAct(
   streetName: StreetName,
   completed: Action[],
   preflopActors: Position[],
+  alreadyAllIn: Set<Position> = new Set(),
 ): Position[] {
   const order = orderFor(streetName)
   let lastReopenIdx = -1
@@ -162,18 +183,24 @@ export function legalActorsToAct(
     }
   }
 
+  // Players who can't act: from prior streets + went all-in in this street before the last reopen
+  const cannotAct = new Set<Position>([
+    ...alreadyAllIn,
+    ...allInActorsIn(lastReopenIdx === -1 ? completed : completed.slice(0, lastReopenIdx)),
+  ])
+
   if (lastReopenIdx !== -1) {
     const reopener = completed[lastReopenIdx].actor
     const beforeReopen = uniqueActors(completed.slice(0, lastReopenIdx))
     const afterReopen = new Set(uniqueActors(completed.slice(lastReopenIdx + 1)))
-    return buildReopenOptions(streetName, reopener, beforeReopen, afterReopen, preflopActors)
+    return buildReopenOptions(streetName, reopener, beforeReopen, afterReopen, preflopActors, cannotAct)
   }
 
   const spokenSet = new Set(uniqueActors(completed))
   const lastActor = completed.length > 0 ? completed[completed.length - 1].actor : null
 
   if (streetName === 'Preflop') {
-    const generics = GENERIC_POSITIONS.filter((p) => !spokenSet.has(p))
+    const generics = GENERIC_POSITIONS.filter((p) => !spokenSet.has(p) && !cannotAct.has(p))
     let maxSpokenIdx = -1
     for (const a of completed) {
       const idx = order.indexOf(a.actor)
@@ -181,16 +208,17 @@ export function legalActorsToAct(
     }
     const ordered =
       maxSpokenIdx === -1
-        ? order.filter((p) => !spokenSet.has(p))
-        : order.slice(maxSpokenIdx + 1)
+        ? order.filter((p) => !spokenSet.has(p) && !cannotAct.has(p))
+        : order.slice(maxSpokenIdx + 1).filter((p) => !cannotAct.has(p))
     return [...generics, ...ordered]
   }
 
-  if (!lastActor) return sortPositions(preflopActors, order)
+  if (!lastActor) return sortPositions(preflopActors.filter((p) => !cannotAct.has(p)), order)
   const lastIdx = order.indexOf(lastActor)
   return sortPositions(
     preflopActors.filter((p) => {
       if (spokenSet.has(p)) return false
+      if (cannotAct.has(p)) return false
       const pIdx = order.indexOf(p)
       if (lastIdx === -1 || pIdx === -1) return true
       return pIdx > lastIdx
@@ -208,7 +236,12 @@ export function legalActorsToAct(
  * subset still active after it — removing explicit folders (verb 'f') and
  * implicit folders (bypassed in the re-open response order).
  */
-function activeAfterStreet(actions: Action[], pool: Position[], order: Position[]): Position[] {
+function activeAfterStreet(
+  actions: Action[],
+  pool: Position[],
+  order: Position[],
+  alreadyAllIn: Set<Position> = new Set(),
+): Position[] {
   const explicitFolders = new Set<Position>()
   for (const a of actions) if (a.verb === 'f') explicitFolders.add(a.actor)
 
@@ -225,6 +258,12 @@ function activeAfterStreet(actions: Action[], pool: Position[], order: Position[
     return pool.filter((a) => !explicitFolders.has(a))
   }
 
+  // Players who can't respond: all-in from prior streets + went all-in in this street before the last reopen
+  const cannotAct = new Set<Position>([
+    ...alreadyAllIn,
+    ...allInActorsIn(actions.slice(0, lastReopenIdx)),
+  ])
+
   const reopener = actions[lastReopenIdx].actor
   const reopenerIdx = order.indexOf(reopener)
   const beforeSet = new Set(uniqueActors(actions.slice(0, lastReopenIdx)))
@@ -232,11 +271,12 @@ function activeAfterStreet(actions: Action[], pool: Position[], order: Position[
 
   const firstTimers = pool.filter((p) => {
     if (p === reopener) return false
+    if (cannotAct.has(p)) return false
     const pIdx = order.indexOf(p)
     if (reopenerIdx === -1 || pIdx === -1) return !beforeSet.has(p)
     return pIdx > reopenerIdx
   })
-  const secondTimers = pool.filter((p) => p !== reopener && beforeSet.has(p))
+  const secondTimers = pool.filter((p) => p !== reopener && beforeSet.has(p) && !cannotAct.has(p))
   const responseOrder = [...sortPositions(firstTimers, order), ...sortPositions(secondTimers, order)]
   const implicitFolders = new Set(responseOrder.filter((p) => !spokenAfterSet.has(p)))
 
@@ -253,10 +293,13 @@ function postflopActors(preflopActions: Action[]): Position[] {
 function activePoolEntering(state: HandState, throughStreetCount: number): Position[] {
   const preflop = state.streets.find((s) => s.name === 'Preflop')
   let pool = preflop ? postflopActors(preflop.actions) : []
+  const allIn = new Set<Position>(preflop ? allInActorsIn(completeActions(preflop.actions)) : [])
   for (let i = 0; i < throughStreetCount; i++) {
     const s = state.streets[i]
     if (s && s.name !== 'Preflop') {
-      pool = activeAfterStreet(completeActions(s.actions), pool, POSTFLOP_POSITION_ORDER)
+      const completed = completeActions(s.actions)
+      pool = activeAfterStreet(completed, pool, POSTFLOP_POSITION_ORDER, allIn)
+      for (const a of completed) if (a.verb === 'a') allIn.add(a.actor)
     }
   }
   return pool
@@ -271,20 +314,24 @@ export function foldedActors(state: HandState): Set<Position> {
 
   const preflop = state.streets.find((s) => s.name === 'Preflop')
   let activePool: Position[] = []
+  const allIn = new Set<Position>()
   if (preflop) {
     const completed = completeActions(preflop.actions)
     const appearedPre = uniqueActors(completed)
     activePool = postflopActors(preflop.actions)
     const activeSet = new Set(activePool)
     for (const a of appearedPre) if (!activeSet.has(a)) folded.add(a)
+    for (const a of completed) if (a.verb === 'a') allIn.add(a.actor)
   }
 
   for (const street of state.streets) {
     if (street.name === 'Preflop') continue
-    const next = activeAfterStreet(completeActions(street.actions), activePool, POSTFLOP_POSITION_ORDER)
+    const completed = completeActions(street.actions)
+    const next = activeAfterStreet(completed, activePool, POSTFLOP_POSITION_ORDER, allIn)
     const nextSet = new Set(next)
     for (const a of activePool) if (!nextSet.has(a)) folded.add(a)
     activePool = next
+    for (const a of completed) if (a.verb === 'a') allIn.add(a.actor)
   }
 
   return folded
@@ -358,8 +405,13 @@ export function nextStreetName(state: HandState): StreetName | undefined {
 function activePoolAtShowdown(state: HandState): Position[] {
   const preflop = state.streets.find((s) => s.name === 'Preflop')
   let pool = preflop ? postflopActors(preflop.actions) : []
+  const allIn = new Set<Position>(preflop ? allInActorsIn(completeActions(preflop.actions)) : [])
   for (const s of state.streets) {
-    if (s.name !== 'Preflop') pool = activeAfterStreet(completeActions(s.actions), pool, POSTFLOP_POSITION_ORDER)
+    if (s.name !== 'Preflop') {
+      const completed = completeActions(s.actions)
+      pool = activeAfterStreet(completed, pool, POSTFLOP_POSITION_ORDER, allIn)
+      for (const a of completed) if (a.verb === 'a') allIn.add(a.actor)
+    }
   }
   return pool
 }
@@ -392,7 +444,12 @@ function showdownNextStep(state: HandState): NextStep {
   return { kind: 'showdownActor', options, canSave: entries.length > 0 }
 }
 
-function streetNextStep(state: HandState, street: Street, preflopActors: Position[]): NextStep {
+function streetNextStep(
+  state: HandState,
+  street: Street,
+  preflopActors: Position[],
+  alreadyAllIn: Set<Position> = new Set(),
+): NextStep {
   const actions = street.actions
   const trailing = actions[actions.length - 1]
   const heroPos = state.hero?.position
@@ -403,7 +460,7 @@ function streetNextStep(state: HandState, street: Street, preflopActors: Positio
     return { kind: 'verb', street: street.name, actor: trailing.actor, options: verbs, facingBet, bbOption }
   }
 
-  const options = legalActorsToAct(street.name, actions, preflopActors)
+  const options = legalActorsToAct(street.name, actions, preflopActors, alreadyAllIn)
   const hasAny = actions.length > 0
   return {
     kind: 'actor',
@@ -434,8 +491,10 @@ export function nextStep(state: HandState): NextStep {
   }
 
   const last = state.streets[state.streets.length - 1]
-  const pool = activePoolEntering(state, state.streets.length - 1)
-  return streetNextStep(state, last, pool)
+  const streetIdx = state.streets.length - 1
+  const pool = activePoolEntering(state, streetIdx)
+  const allIn = allInBeforeStreet(state, streetIdx)
+  return streetNextStep(state, last, pool, allIn)
 }
 
 /** True when the hand is complete enough to serialize / save. */
@@ -551,7 +610,8 @@ export function legalActorsForActionSlot(state: HandState, streetName: StreetNam
   const street = state.streets[streetIdx]
   const prior = completeActions(street.actions.slice(0, index))
   const pool = activePoolEntering(state, streetIdx)
-  return legalActorsToAct(streetName, prior, pool)
+  const alreadyAllIn = allInBeforeStreet(state, streetIdx)
+  return legalActorsToAct(streetName, prior, pool, alreadyAllIn)
 }
 
 export function legalVerbsForActionSlot(state: HandState, streetName: StreetName, index: number): VerbOptions {
