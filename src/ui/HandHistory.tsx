@@ -66,7 +66,7 @@ export default function HandHistory({ hands, onNew, onView, onDelete }: Props) {
       )}
 
       {hands.map((hand) => {
-        const { stakes, heroPosition, heroCards, streetReached } = hand.summary
+        const { stakes, heroPosition, heroCards, streetReached, totalPot } = hand.summary
         const streetCount = STREET_COUNT[streetReached] ?? 1
         const cards = heroPreview(heroCards)
         const date = hand.createdAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -105,6 +105,9 @@ export default function HandHistory({ hands, onNew, onView, onDelete }: Props) {
                 {stakes ? `${stakes.replace(/\$/g, '')} NLH` : 'Unspecified stakes'}
                 {' · '}
                 <span style={{ color: HERO_COLOR }}>{heroPosition}</span>
+                {totalPot !== undefined && (
+                  <> · <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>Pot: {totalPot}</span></>
+                )}
               </div>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '0.15rem' }}>
                 {streetCount} street{streetCount !== 1 ? 's' : ''} &nbsp;·&nbsp; {date} {time}

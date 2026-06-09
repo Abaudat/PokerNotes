@@ -33,6 +33,8 @@ export function runRepositoryContract(makeRepo: () => HandRepository): void {
     expect(hand!.summary.board).toEqual(['As', '8h', 'Td'])
     expect(hand!.summary.streetReached).toBe('Flop')
     expect(hand!.summary.stakes).toBe('$2/$5')
+    expect(typeof hand!.summary.totalPot).toBe('number')
+    expect(hand!.summary.totalPot).toBeGreaterThan(0)
     expect(hand!.createdAt).toBeInstanceOf(Date)
     expect(hand!.updatedAt).toBeInstanceOf(Date)
   })
