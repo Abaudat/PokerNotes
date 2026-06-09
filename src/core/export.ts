@@ -1,4 +1,5 @@
 import { SUIT_GLYPHS } from './cards'
+import { computePotAtStreetStart } from './engine'
 import type { HandState, Action, Card, Verb, ShowdownEntry } from './types'
 
 function cardGlyph(card: Card): string {
@@ -57,14 +58,17 @@ export function formatForExport(state: HandState): string {
     : ''
   lines.push(`Hero (${heroPos}): ${heroCards}`)
 
-  for (const street of state.streets) {
+  for (let i = 0; i < state.streets.length; i++) {
+    const street = state.streets[i]
+    const pot = computePotAtStreetStart(state, i)
     const actions = street.actions.map(formatAction).join(', ')
-    lines.push(`${street.name}: ${actions}`)
+    lines.push(`${street.name} (Pot: ${pot}): ${actions}`)
   }
 
   if (state.showdown) {
+    const pot = computePotAtStreetStart(state, state.streets.length)
     const sd = state.showdown.map(formatShowdownEntry).join(', ')
-    lines.push(`Showdown: ${sd}`)
+    lines.push(`Showdown (Pot: ${pot}): ${sd}`)
   }
 
   return lines.join('\n')

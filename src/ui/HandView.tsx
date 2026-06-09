@@ -129,8 +129,13 @@ export default function HandView({ hand, onBack, onEdit }: Props) {
       {/* Streets */}
       {vm.streets.map((street) => (
         <section key={street.name}>
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            {street.name}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              {street.name}
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+              Pot: {street.potAtStart}
+            </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
             {street.actions.map((action) => {
@@ -156,8 +161,15 @@ export default function HandView({ hand, onBack, onEdit }: Props) {
       {/* Showdown */}
       {vm.showdown && vm.showdown.length > 0 && (
         <section>
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Showdown
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Showdown
+            </div>
+            {vm.showdownPot !== undefined && (
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                Pot: {vm.showdownPot}
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
             {vm.showdown.map((sa) => {

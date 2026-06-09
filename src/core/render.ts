@@ -1,4 +1,5 @@
 import { formatCard, SUIT_GLYPHS } from './cards'
+import { computePotAtStreetStart } from './engine'
 import type { HandState, Position, StreetName, Verb, Card } from './types'
 
 export const HERO_COLOR = '#f59e0b'
@@ -40,6 +41,7 @@ export interface ActionViewModel {
 
 export interface StreetViewModel {
   name: StreetName
+  potAtStart: number
   actions: ActionViewModel[]
 }
 
@@ -66,6 +68,7 @@ export interface HandViewModel {
   hero: HeroViewModel
   streets: StreetViewModel[]
   showdown?: ShowdownActionViewModel[]
+  showdownPot?: number
 }
 
 export function buildHandViewModel(state: HandState): HandViewModel {
@@ -84,8 +87,9 @@ export function buildHandViewModel(state: HandState): HandViewModel {
     color: HERO_COLOR,
   }
 
-  const streets: StreetViewModel[] = state.streets.map((street) => ({
+  const streets: StreetViewModel[] = state.streets.map((street, i) => ({
     name: street.name,
+    potAtStart: computePotAtStreetStart(state, i),
     actions: street.actions.map((action) => {
       const vm: ActionViewModel = {
         id: action.id,
@@ -113,7 +117,12 @@ export function buildHandViewModel(state: HandState): HandViewModel {
       })
     : undefined
 
-  return { stakes: state.stakes, board, hero, streets, showdown }
+  const showdownPot =
+    state.showdown !== undefined
+      ? computePotAtStreetStart(state, state.streets.length)
+      : undefined
+
+  return { stakes: state.stakes, board, hero, streets, showdown, showdownPot }
 }
 
 // ===========================================================================
@@ -288,7 +297,20 @@ export function buildEditorView(state: HandState): ChipLine[] {
     noteLine('hero')
   }
 
-  for (const street of state.streets) {
+  for (let si = 0; si < state.streets.length; si++) {
+    const street = state.streets[si]
+    const pot = computePotAtStreetStart(state, si)
+    lines.push({
+      key: `pot:${street.name}`,
+      chips: [
+        {
+          id: `pot:${street.name}`,
+          kind: 'label',
+          text: `Pot: ${pot}`,
+          editKind: null,
+        },
+      ],
+    })
     const chips: Chip[] = []
     street.actions.forEach((action, i) => {
       chips.push({
@@ -314,6 +336,21 @@ export function buildEditorView(state: HandState): ChipLine[] {
     })
     if (chips.length > 0) lines.push({ key: `street:${street.name}`, chips })
     noteLine(street.name)
+  }
+
+  if (state.showdown !== undefined) {
+    const showdownPot = computePotAtStreetStart(state, state.streets.length)
+    lines.push({
+      key: 'pot:showdown',
+      chips: [
+        {
+          id: 'pot:showdown',
+          kind: 'label',
+          text: `Pot: ${showdownPot}`,
+          editKind: null,
+        },
+      ],
+    })
   }
 
   if (state.showdown !== undefined) {

@@ -457,6 +457,75 @@ export function isComplete(state: HandState): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Pot calculation
+// ---------------------------------------------------------------------------
+
+function parseStakesAmounts(stakes: string | undefined): { sb: number; bb: number } {
+  if (!stakes) return { sb: 0, bb: 0 }
+  const match = /\$?(\d+(?:\.\d+)?)\s*\/\s*\$?(\d+(?:\.\d+)?)/.exec(stakes)
+  if (!match) return { sb: 0, bb: 0 }
+  return { sb: Number(match[1]), bb: Number(match[2]) }
+}
+
+function computeStreetContributions(
+  streetName: StreetName,
+  actions: Action[],
+  sbAmount: number,
+  bbAmount: number,
+): number {
+  const contributions = new Map<Position, number>()
+  let currentBet = 0
+
+  if (streetName === 'Preflop') {
+    contributions.set('SB', sbAmount)
+    contributions.set('BB', bbAmount)
+    currentBet = bbAmount
+  }
+
+  for (const action of actions) {
+    if (action.verb === undefined) continue
+    switch (action.verb) {
+      case 'f':
+      case 'x':
+        break
+      case 'c':
+        contributions.set(action.actor, currentBet)
+        break
+      case 'r':
+      case 'b':
+        if (action.amount !== undefined) {
+          contributions.set(action.actor, action.amount)
+          currentBet = action.amount
+        }
+        break
+      case 'a':
+        if (action.amount !== undefined) {
+          contributions.set(action.actor, action.amount)
+          if (action.amount > currentBet) currentBet = action.amount
+        }
+        break
+    }
+  }
+
+  let total = 0
+  for (const v of contributions.values()) total += v
+  return total
+}
+
+/**
+ * Returns the pot size at the start of the street at the given index (0 = Preflop).
+ * Pass `state.streets.length` to get the pot after all streets (e.g. at showdown).
+ */
+export function computePotAtStreetStart(state: HandState, streetIndex: number): number {
+  const { sb, bb } = parseStakesAmounts(state.stakes)
+  let pot = 0
+  for (let i = 0; i < streetIndex && i < state.streets.length; i++) {
+    pot += computeStreetContributions(state.streets[i].name, state.streets[i].actions, sb, bb)
+  }
+  return pot
+}
+
+// ---------------------------------------------------------------------------
 // Used cards (for card pickers)
 // ---------------------------------------------------------------------------
 
