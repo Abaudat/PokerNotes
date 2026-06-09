@@ -115,7 +115,7 @@ describe('computePotAtStreetStart — edge cases', () => {
     const state = parseHand(
       'Board: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15, BB c',
     )
-    expect(computePotAtStreetStart(state, 1)).toBe(0)
+    expect(computePotAtStreetStart(state, 1)).toBe(30)
   })
 
   it('handles preflop-only hands', () => {
