@@ -104,7 +104,7 @@ export default function HandHistory({ hands, onNew, onView, onDelete }: Props) {
               <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                 {stakes ? `${stakes.replace(/\$/g, '')} NLH` : 'Unspecified stakes'}
                 {' · '}
-                <span style={{ color: HERO_COLOR }}>{heroPosition}</span>
+                <span style={{ color: HERO_COLOR }}>H ({heroPosition})</span>
                 {totalPot !== undefined && (
                   <> · <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>Pot: {totalPot}</span></>
                 )}

@@ -1,5 +1,5 @@
 import { SUIT_GLYPHS } from './cards'
-import { computePotAtStreetStart } from './engine'
+import { computePotAtStreetStart, markerFor, markerLabel } from './engine'
 import type { HandState, Action, Card, Verb, ShowdownEntry } from './types'
 
 function cardGlyph(card: Card): string {
@@ -15,12 +15,12 @@ const VERB_WORDS: Record<Verb, string> = {
   a: 'all in',
 }
 
-function actorName(actor: string): string {
-  return actor === 'H' ? 'Hero' : actor
+function actorName(state: HandState, actor: Action['actor']): string {
+  return markerLabel(actor, markerFor(state, actor))
 }
 
-function formatAction(action: Action): string {
-  const actor = actorName(action.actor)
+function formatAction(state: HandState, action: Action): string {
+  const actor = actorName(state, action.actor)
   const verb = action.verb !== undefined ? VERB_WORDS[action.verb] : ''
   if (action.amount !== undefined) {
     if (action.verb === 'a') {
@@ -31,8 +31,8 @@ function formatAction(action: Action): string {
   return `${actor} ${verb}`
 }
 
-function formatShowdownEntry(entry: ShowdownEntry): string {
-  const actor = actorName(entry.actor)
+function formatShowdownEntry(state: HandState, entry: ShowdownEntry): string {
+  const actor = actorName(state, entry.actor)
   if (entry.verb === 'shows' && entry.cards) {
     return `${actor} shows ${cardGlyph(entry.cards[0])} ${cardGlyph(entry.cards[1])}`
   }
@@ -61,13 +61,13 @@ export function formatForExport(state: HandState): string {
   for (let i = 0; i < state.streets.length; i++) {
     const street = state.streets[i]
     const pot = computePotAtStreetStart(state, i)
-    const actions = street.actions.map(formatAction).join(', ')
+    const actions = street.actions.map((a) => formatAction(state, a)).join(', ')
     lines.push(`${street.name} (Pot: ${pot}): ${actions}`)
   }
 
   if (state.showdown) {
     const pot = computePotAtStreetStart(state, state.streets.length)
-    const sd = state.showdown.map(formatShowdownEntry).join(', ')
+    const sd = state.showdown.map((e) => formatShowdownEntry(state, e)).join(', ')
     lines.push(`Showdown (Pot: ${pot}): ${sd}`)
   }
 

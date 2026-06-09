@@ -81,14 +81,16 @@ board    = "Board:" card{0|3|4|5}
 hero     = "Hero:" actor card card
 street   = ("Preflop"|"Flop"|"Turn"|"River") ":" action ("," action)*
 action   = actor verb [amount]
-actor    = "H" | "V" | "V2".. | "UTG" | "UTG+1" | "UTG+2" | "HJ" | "CO"
+actor    = "UTG" | "UTG+1" | "UTG+2" | "UTG+3" | "HJ" | "CO"
            | "BTN" | "SB" | "BB" | "EP" | "MP"
 verb     = "x"(check) | "c"(call) | "r"(raise) | "f"(fold) | "b"(bet)
 amount   = number          ; required iff verb ∈ {r, b}
 card     = rank suit ; rank ∈ 2..9,T,J,Q,K,A ; suit ∈ s,h,d,c
 ```
 
-- `H` = Hero; any other actor = a villain (full position, rough `EP`/`MP`, or `V`/`V2…`).
+- Actors are always real positions. The hero/villain roles are **derived for display**, never
+  stored: the hero's seat is marked `H (pos)`, and when the hand is heads-up by the flop the lone
+  opponent's seat is marked `V (pos)` (retroactively across all streets).
 - The streets present are bounded by board length (3 cards ⇒ up to Flop, 4 ⇒ Turn, 5 ⇒ River;
   0 ⇒ folded preflop).
 - The parser yields a **Hand AST** in which every token has a stable `id` + source span, so

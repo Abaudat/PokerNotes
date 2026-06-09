@@ -38,8 +38,8 @@ test.describe('history with one hand', () => {
   })
 
   // Test 23
-  test('Hand card shows the hero position', async ({ page }) => {
-    await expect(page.getByText('BTN').first()).toBeVisible()
+  test('Hand card shows the hero position with its H marker', async ({ page }) => {
+    await expect(page.getByText('H (BTN)').first()).toBeVisible()
   })
 
   // Test 24
@@ -75,7 +75,7 @@ test.describe('history with two hands', () => {
     await page.getByRole('button', { name: 'A♠' }).click()
     await page.getByRole('button', { name: 'K♠' }).click()
     await page.getByRole('button', { name: /Done/ }).click()
-    await page.getByRole('button', { name: 'H', exact: true }).click()
+    await page.getByRole('button', { name: 'CO', exact: true }).click()
     await page.getByRole('button', { name: 'Call' }).click()
     await page.getByRole('button', { name: 'Save hand' }).click()
     await page.getByRole('button', { name: '← History' }).click()

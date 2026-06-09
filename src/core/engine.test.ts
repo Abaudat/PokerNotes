@@ -13,6 +13,9 @@ import {
   legalActorsForActionSlot,
   legalVerbsForActionSlot,
   legalShowdownActorsForSlot,
+  villainPosition,
+  markerFor,
+  markerLabel,
 } from './engine'
 import type { Action, Card, HandState, Position, Street, StreetName, Verb } from './types'
 
@@ -105,8 +108,8 @@ describe('legalActorsToAct — preflop', () => {
     expect(opts.indexOf('SB')).toBeLessThan(opts.indexOf('BB'))
   })
 
-  it('drops H from suggestions after H has spoken', () => {
-    expect(legalActorsToAct('Preflop', acts('H r 40'), [])).not.toContain('H')
+  it('drops a position from suggestions after it has raised', () => {
+    expect(legalActorsToAct('Preflop', acts('UTG r 40'), [])).not.toContain('UTG')
   })
 
   it('after a raise includes first timers (after raiser) and second timers (spoke before)', () => {
@@ -225,7 +228,7 @@ describe('folded / active tracking', () => {
 
 describe('legalVerbs', () => {
   it('non-BB preflop faces the implicit BB: call/raise/fold/all-in', () => {
-    const r = legalVerbs('Preflop', 'H', [], 'BTN')
+    const r = legalVerbs('Preflop', 'BTN', [])
     expect(r.facingBet).toBe(true)
     expect(r.verbs).toContain('c')
     expect(r.verbs).toContain('r')
@@ -235,7 +238,7 @@ describe('legalVerbs', () => {
   })
 
   it('BB preflop with no raise can check (option)', () => {
-    const r = legalVerbs('Preflop', 'BB', [], 'BTN')
+    const r = legalVerbs('Preflop', 'BB', [])
     expect(r.facingBet).toBe(false)
     expect(r.bbOption).toBe(true)
     expect(r.verbs).toContain('x')
@@ -244,27 +247,21 @@ describe('legalVerbs', () => {
   })
 
   it('BB preflop after a raise must call/raise', () => {
-    const r = legalVerbs('Preflop', 'BB', acts('UTG r 15, CO c'), 'BTN')
+    const r = legalVerbs('Preflop', 'BB', acts('UTG r 15, CO c'))
     expect(r.facingBet).toBe(true)
     expect(r.verbs).toContain('c')
     expect(r.verbs).not.toContain('x')
   })
 
-  it('resolves H to the hero position (hero in the BB gets the option)', () => {
-    const r = legalVerbs('Preflop', 'H', [], 'BB')
-    expect(r.facingBet).toBe(false)
-    expect(r.bbOption).toBe(true)
-  })
-
   it('postflop not facing a bet: check/bet/fold/all-in', () => {
-    const r = legalVerbs('Flop', 'H', acts('CO x'), 'BTN')
+    const r = legalVerbs('Flop', 'BTN', acts('CO x'))
     expect(r.facingBet).toBe(false)
     expect(r.verbs).toContain('x')
     expect(r.verbs).toContain('b')
   })
 
   it('postflop facing a bet: call/raise/fold/all-in', () => {
-    const r = legalVerbs('Flop', 'H', acts('CO b 30'), 'BTN')
+    const r = legalVerbs('Flop', 'BTN', acts('CO b 30'))
     expect(r.facingBet).toBe(true)
     expect(r.verbs).toContain('c')
     expect(r.verbs).not.toContain('x')
@@ -273,11 +270,11 @@ describe('legalVerbs', () => {
 
 describe('hasBetOrRaise', () => {
   it('false for checks/calls/folds', () => {
-    expect(hasBetOrRaise(acts('BB x, H c'))).toBe(false)
+    expect(hasBetOrRaise(acts('BB x, BTN c'))).toBe(false)
   })
   it('true when any bet/raise/all-in present', () => {
-    expect(hasBetOrRaise(acts('BB b 20, H c'))).toBe(true)
-    expect(hasBetOrRaise(acts('H all in 200'))).toBe(true)
+    expect(hasBetOrRaise(acts('BB b 20, BTN c'))).toBe(true)
+    expect(hasBetOrRaise(acts('BTN all in 200'))).toBe(true)
   })
 })
 
@@ -287,10 +284,10 @@ describe('hasBetOrRaise', () => {
 
 describe('nextStep — verb step', () => {
   it('a trailing verbless action yields a verb step with facingBet', () => {
-    const step = nextStep(st({ streets: [street('Preflop', 'H')] }))
+    const step = nextStep(st({ streets: [street('Preflop', 'UTG')] }))
     expect(step.kind).toBe('verb')
     if (step.kind === 'verb') {
-      expect(step.actor).toBe('H')
+      expect(step.actor).toBe('UTG')
       expect(step.facingBet).toBe(true)
     }
   })
@@ -298,29 +295,29 @@ describe('nextStep — verb step', () => {
 
 describe('nextStep — street advancement flags', () => {
   it('canAdvance true after preflop with a 3-card board', () => {
-    const step = nextStep(st({ streets: [street('Preflop', 'H r 40, CO c')] }))
+    const step = nextStep(st({ streets: [street('Preflop', 'BTN r 40, CO c')] }))
     expect(step.kind === 'actor' && step.canAdvance).toBe(true)
   })
 
   it('canAdvance false after preflop with a 0-card board', () => {
-    const step = nextStep(st({ board: [], streets: [street('Preflop', 'H f')] }))
+    const step = nextStep(st({ board: [], streets: [street('Preflop', 'BTN f')] }))
     expect(step.kind === 'actor' && step.canAdvance).toBe(false)
   })
 
   it('canAdvance false after flop with only 3 cards', () => {
-    const step = nextStep(st({ streets: [street('Preflop', 'H r 40, BB c'), street('Flop', 'BB x, H b 20, BB c')] }))
+    const step = nextStep(st({ streets: [street('Preflop', 'BTN r 40, BB c'), street('Flop', 'BB x, BTN b 20, BB c')] }))
     expect(step.kind === 'actor' && step.canAdvance).toBe(false)
   })
 
   it('canSave true after a complete action', () => {
-    const step = nextStep(st({ streets: [street('Preflop', 'H r 40, CO c')] }))
+    const step = nextStep(st({ streets: [street('Preflop', 'BTN r 40, CO c')] }))
     expect(step.kind === 'actor' && step.canSave).toBe(true)
   })
 
   it('canAdvanceStreet false on the river', () => {
     const state = st({
       board: [C('As'), C('8h'), C('Td'), C('2c'), C('7s')],
-      streets: [street('Preflop', 'H r 40, BB c'), street('Flop', 'BB x, H x'), street('Turn', 'BB x, H x'), street('River', 'BB b 40, H c')],
+      streets: [street('Preflop', 'BTN r 40, BB c'), street('Flop', 'BB x, BTN x'), street('Turn', 'BB x, BTN x'), street('River', 'BB b 40, BTN c')],
     })
     expect(canAdvanceStreet(state)).toBe(false)
   })
@@ -332,34 +329,38 @@ describe('nextStep — street advancement flags', () => {
 
 describe('showdownEligibleActors', () => {
   it('excludes a player who folded preflop, keeps the caller', () => {
-    const opts = showdownEligibleActors(st({ streets: [street('Preflop', 'H r 40, CO c, BB f')], showdown: [] }))
+    const opts = showdownEligibleActors(st({ streets: [street('Preflop', 'BTN r 40, CO c, BB f')], showdown: [] }))
     expect(opts).not.toContain('BB')
     expect(opts).toContain('CO')
   })
 
-  it('always offers the generic villain V', () => {
-    expect(showdownEligibleActors(st({ streets: [street('Preflop', 'H c')], showdown: [] }))).toContain('V')
+  it('offers only seats still in the hand, never a generic villain', () => {
+    const opts = showdownEligibleActors(st({ streets: [street('Preflop', 'BTN c, BB x')], showdown: [] }))
+    expect(opts).toContain('BTN')
+    expect(opts).toContain('BB')
+    expect(opts).not.toContain('V')
+    expect(opts).not.toContain('H')
   })
 
   it('excludes actors passed in the exclude set (already shown)', () => {
-    const state = st({ streets: [street('Preflop', 'H c')], showdown: [] })
-    expect(showdownEligibleActors(state, new Set(['V']))).not.toContain('V')
+    const state = st({ streets: [street('Preflop', 'BTN c, BB x')], showdown: [] })
+    expect(showdownEligibleActors(state, new Set(['BB']))).not.toContain('BB')
   })
 })
 
 describe('nextStep — showdown', () => {
   it('enters showdown actor mode when a showdown list exists', () => {
-    expect(nextStep(st({ streets: [street('Preflop', 'H c')], showdown: [] })).kind).toBe('showdownActor')
+    expect(nextStep(st({ streets: [street('Preflop', 'BTN c, BB x')], showdown: [] })).kind).toBe('showdownActor')
   })
 
   it('asks for the verb after a showdown actor is chosen', () => {
-    const state = st({ streets: [street('Preflop', 'H c')], showdown: [{ id: 's1', actor: 'V' }] })
+    const state = st({ streets: [street('Preflop', 'BTN c, BB x')], showdown: [{ id: 's1', actor: 'BB' }] })
     const step = nextStep(state)
     expect(step.kind).toBe('showdownVerb')
   })
 
   it('asks for cards when a player shows', () => {
-    const state = st({ streets: [street('Preflop', 'H c')], showdown: [{ id: 's1', actor: 'V', verb: 'shows' }] })
+    const state = st({ streets: [street('Preflop', 'BTN c, BB x')], showdown: [{ id: 's1', actor: 'BB', verb: 'shows' }] })
     expect(nextStep(state).kind).toBe('showdownCards')
   })
 })
@@ -377,8 +378,6 @@ describe('edit-option restriction (regression)', () => {
     const opts = legalShowdownActorsForSlot(state, 0)
     expect(opts).toContain('HJ')
     expect(opts).toContain('BB')
-    expect(opts).toContain('H')
-    expect(opts).toContain('V')
     for (const p of ['CO', 'UTG', 'BTN', 'SB']) expect(opts).not.toContain(p)
   })
 
@@ -395,7 +394,7 @@ describe('edit-option restriction (regression)', () => {
   })
 
   it('editing a verb facing a bet offers call/raise/fold/all-in (not check/bet)', () => {
-    const state = parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BB r 20, H c')
+    const state = parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BB r 20, BTN c')
     const { verbs, facingBet } = legalVerbsForActionSlot(state, 'Preflop', 1)
     expect(facingBet).toBe(true)
     expect(verbs).toContain('c')
@@ -476,20 +475,70 @@ describe('all-in player handling', () => {
 // isComplete
 // ===========================================================================
 
+// ===========================================================================
+// Hero / villain marker derivation
+// ===========================================================================
+
+describe('villainPosition', () => {
+  it('is the lone non-hero seat when heads-up by the flop', () => {
+    // Hero BTN calls, BB checks → BTN and BB see the flop heads-up.
+    const state = st({ hero: { position: 'BTN', cards: [C('Ah'), C('Ks')] }, streets: [street('Preflop', 'BTN c, BB x')] })
+    expect(villainPosition(state)).toBe('BB')
+  })
+
+  it('is undefined when more than one villain reaches the flop', () => {
+    const state = st({ streets: [street('Preflop', 'CO c, BTN c, BB x')] })
+    expect(villainPosition(state)).toBeUndefined()
+  })
+
+  it('is undefined when the hero is not in the flop pool', () => {
+    // Hero BTN folds preflop; SB and BB go heads-up — no hero/villain frame.
+    const state = st({ streets: [street('Preflop', 'BTN f, SB c, BB x')] })
+    expect(villainPosition(state)).toBeUndefined()
+  })
+
+  it('reflects players folding to leave a single villain', () => {
+    // UTG raises, hero BTN calls, blinds fold → heads-up BTN vs UTG.
+    const state = st({ hero: { position: 'BTN', cards: [C('Ah'), C('Ks')] }, streets: [street('Preflop', 'UTG r 15, BTN c, SB f, BB f')] })
+    expect(villainPosition(state)).toBe('UTG')
+  })
+})
+
+describe('markerFor / markerLabel', () => {
+  const headsUp = st({ hero: { position: 'BTN', cards: [C('Ah'), C('Ks')] }, streets: [street('Preflop', 'BTN c, BB x')] })
+
+  it('marks the hero seat H and the lone villain V', () => {
+    expect(markerFor(headsUp, 'BTN')).toBe('H')
+    expect(markerFor(headsUp, 'BB')).toBe('V')
+  })
+
+  it('leaves other seats unmarked', () => {
+    const multiway = st({ streets: [street('Preflop', 'CO c, BTN c, BB x')] })
+    expect(markerFor(multiway, 'CO')).toBeUndefined()
+    expect(markerFor(multiway, 'BB')).toBeUndefined()
+  })
+
+  it('formats marked seats as "H (pos)" / "V (pos)"', () => {
+    expect(markerLabel('BTN', 'H')).toBe('H (BTN)')
+    expect(markerLabel('BB', 'V')).toBe('V (BB)')
+    expect(markerLabel('CO', undefined)).toBe('CO')
+  })
+})
+
 describe('isComplete', () => {
   it('true for a fully recorded hand', () => {
-    expect(isComplete(st({ streets: [street('Preflop', 'H r 40, CO c')] }))).toBe(true)
+    expect(isComplete(st({ streets: [street('Preflop', 'BTN r 40, CO c')] }))).toBe(true)
   })
 
   it('false when the board is unset', () => {
-    expect(isComplete(st({ board: undefined, streets: [street('Preflop', 'H c')] }))).toBe(false)
+    expect(isComplete(st({ board: undefined, streets: [street('Preflop', 'BTN c')] }))).toBe(false)
   })
 
   it('false with a trailing verbless action', () => {
-    expect(isComplete(st({ streets: [street('Preflop', 'H r 40, CO')] }))).toBe(false)
+    expect(isComplete(st({ streets: [street('Preflop', 'BTN r 40, CO')] }))).toBe(false)
   })
 
   it('false when a showdown "shows" entry has no cards', () => {
-    expect(isComplete(st({ streets: [street('Preflop', 'H c')], showdown: [{ id: 's', actor: 'V', verb: 'shows' }] }))).toBe(false)
+    expect(isComplete(st({ streets: [street('Preflop', 'BTN c, BB x')], showdown: [{ id: 's', actor: 'BB', verb: 'shows' }] }))).toBe(false)
   })
 })

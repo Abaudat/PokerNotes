@@ -8,10 +8,10 @@ import { parseHand } from './parser'
 const FULL_HAND = `[Stakes: $2/$5]
 Board: As 8h Td
 Hero: BTN AhKs
-Preflop: H r 15, BB c
-Flop: BB x, H b 20, BB c
-Turn: BB x, H x
-River: BB b 40, H f`
+Preflop: BTN r 15, BB c
+Flop: BB x, BTN b 20, BB c
+Turn: BB x, BTN x
+River: BB b 40, BTN f`
 
 describe('parseHand — valid full hand', () => {
   it('parses without throwing', () => {
@@ -101,7 +101,7 @@ describe('parseHand — minimal hand', () => {
 describe('parseHand — board sizes', () => {
   it('parses a 4-card board', () => {
     const board = parseHand(
-      'Board: As 8h Td Jc\nHero: BTN AhKs\nPreflop: H r 15, BB c\nFlop: BB x, H b 20, BB c\nTurn: BB x, H b 30, BB c',
+      'Board: As 8h Td Jc\nHero: BTN AhKs\nPreflop: BTN r 15, BB c\nFlop: BB x, BTN b 20, BB c\nTurn: BB x, BTN b 30, BB c',
     ).board!
     expect(board).toHaveLength(4)
     expect(board[3]).toEqual({ rank: 'J', suit: 'c' })
@@ -109,7 +109,7 @@ describe('parseHand — board sizes', () => {
 
   it('parses a 5-card board', () => {
     const board = parseHand(
-      'Board: As 8h Td Jc 2s\nHero: BTN AhKs\nPreflop: H r 15, BB c\nFlop: BB x, H b 20, BB c\nTurn: BB x, H x\nRiver: BB b 40, H c',
+      'Board: As 8h Td Jc 2s\nHero: BTN AhKs\nPreflop: BTN r 15, BB c\nFlop: BB x, BTN b 20, BB c\nTurn: BB x, BTN x\nRiver: BB b 40, BTN c',
     ).board!
     expect(board).toHaveLength(5)
     expect(board[4]).toEqual({ rank: '2', suit: 's' })
@@ -120,7 +120,7 @@ describe('parseHand — board sizes', () => {
 // 5. All positions
 // ---------------------------------------------------------------------------
 
-const ALL_POSITIONS = ['H', 'BB', 'BTN', 'CO', 'UTG', 'SB', 'HJ', 'MP', 'EP', 'V', 'V2', 'V3', 'UTG+1', 'UTG+2']
+const ALL_POSITIONS = ['BB', 'BTN', 'CO', 'UTG', 'SB', 'HJ', 'MP', 'EP', 'UTG+1', 'UTG+2', 'UTG+3']
 
 describe('parseHand — positions', () => {
   for (const pos of ALL_POSITIONS) {
@@ -131,7 +131,7 @@ describe('parseHand — positions', () => {
 
   for (const pos of ALL_POSITIONS) {
     it(`parses actor "${pos}" in an action`, () => {
-      expect(parseHand(`Board: As 8h Td\nHero: H AhKs\nPreflop: ${pos} x`).streets[0].actions[0].actor).toBe(pos)
+      expect(parseHand(`Board: As 8h Td\nHero: BTN AhKs\nPreflop: ${pos} x`).streets[0].actions[0].actor).toBe(pos)
     })
   }
 })
@@ -144,43 +144,43 @@ describe('parseHand — verbs', () => {
   const first = (raw: string) => parseHand(raw).streets[0].actions[0]
 
   it('check (x) has no amount', () => {
-    const a = first('Board: As 8h Td\nHero: H AhKs\nPreflop: H x')
+    const a = first('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN x')
     expect(a.verb).toBe('x')
     expect(a.amount).toBeUndefined()
   })
 
   it('call (c) has no amount', () => {
-    expect(first('Board: As 8h Td\nHero: H AhKs\nPreflop: H c').verb).toBe('c')
+    expect(first('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN c').verb).toBe('c')
   })
 
   it('fold (f) has no amount', () => {
-    expect(first('Board: As 8h Td\nHero: H AhKs\nPreflop: H f').verb).toBe('f')
+    expect(first('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN f').verb).toBe('f')
   })
 
   it('raise (r) carries amount', () => {
-    const a = first('Board: As 8h Td\nHero: H AhKs\nPreflop: H r 50')
+    const a = first('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 50')
     expect(a.verb).toBe('r')
     expect(a.amount).toBe(50)
   })
 
   it('bet (b) carries amount', () => {
-    const a = first('Board: As 8h Td\nHero: H AhKs\nPreflop: H b 75')
+    const a = first('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN b 75')
     expect(a.verb).toBe('b')
     expect(a.amount).toBe(75)
   })
 
   it('raise with decimal amount', () => {
-    expect(first('Board: As 8h Td\nHero: H AhKs\nPreflop: H r 12.5').amount).toBe(12.5)
+    expect(first('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 12.5').amount).toBe(12.5)
   })
 
   it('"all in" (canonical) parses to verb a', () => {
-    const a = first('Board: As 8h Td\nHero: H AhKs\nPreflop: H all in 200')
+    const a = first('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN all in 200')
     expect(a.verb).toBe('a')
     expect(a.amount).toBe(200)
   })
 
   it('legacy single "a" parses to verb a', () => {
-    expect(first('Board: As 8h Td\nHero: H AhKs\nPreflop: H a').verb).toBe('a')
+    expect(first('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN a').verb).toBe('a')
   })
 })
 
@@ -190,14 +190,14 @@ describe('parseHand — verbs', () => {
 
 describe('parseHand — notes', () => {
   it('captures a note anchored to the section it follows', () => {
-    const state = parseHand('Board: As 8h Td\n# my read\nHero: BTN AhKs\nPreflop: H x')
+    const state = parseHand('Board: As 8h Td\n# my read\nHero: BTN AhKs\nPreflop: BTN x')
     expect(state.notes).toHaveLength(1)
     expect(state.notes[0].text).toBe('my read')
     expect(state.notes[0].anchor).toBe('board')
   })
 
   it('a note before any section anchors to "top"', () => {
-    const state = parseHand('# top note\nBoard:\nHero: BTN AhKs\nPreflop: H x')
+    const state = parseHand('# top note\nBoard:\nHero: BTN AhKs\nPreflop: BTN x')
     expect(state.notes[0].anchor).toBe('top')
   })
 })
@@ -216,31 +216,31 @@ describe('parseHand — throws on malformed input', () => {
   })
 
   it('throws when Board line is missing', () => {
-    expect(() => parseHand('Hero: BTN AhKs\nPreflop: H r 15')).toThrow(/Missing Board line/)
+    expect(() => parseHand('Hero: BTN AhKs\nPreflop: BTN r 15')).toThrow(/Missing Board line/)
   })
 
   it('throws when Hero line is missing', () => {
-    expect(() => parseHand('Board: As 8h Td\nPreflop: H r 15')).toThrow(/Missing Hero line/)
+    expect(() => parseHand('Board: As 8h Td\nPreflop: BTN r 15')).toThrow(/Missing Hero line/)
   })
 
   it('throws on invalid card code in Board', () => {
-    expect(() => parseHand('Board: Zz 8h Td\nHero: BTN AhKs\nPreflop: H r 15')).toThrow(/Invalid card code "Zz"/)
+    expect(() => parseHand('Board: Zz 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15')).toThrow(/Invalid card code "Zz"/)
   })
 
   it('throws on invalid card code in Hero', () => {
-    expect(() => parseHand('Board: As 8h Td\nHero: BTN XxKs\nPreflop: H r 15')).toThrow(/Invalid card code/)
+    expect(() => parseHand('Board: As 8h Td\nHero: BTN XxKs\nPreflop: BTN r 15')).toThrow(/Invalid card code/)
   })
 
   it('throws on unknown verb', () => {
-    expect(() => parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: H z 15')).toThrow(/Unknown verb/)
+    expect(() => parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN z 15')).toThrow(/Unknown verb/)
   })
 
   it('throws on raise with no amount', () => {
-    expect(() => parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: H r')).toThrow(/requires an amount/)
+    expect(() => parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r')).toThrow(/requires an amount/)
   })
 
   it('throws on bet with no amount', () => {
-    expect(() => parseHand('Board: As 8h Td\nHero: BTN AhKs\nFlop: H b')).toThrow(/requires an amount/)
+    expect(() => parseHand('Board: As 8h Td\nHero: BTN AhKs\nFlop: BTN b')).toThrow(/requires an amount/)
   })
 
   it('throws when no streets present', () => {
@@ -250,6 +250,10 @@ describe('parseHand — throws on malformed input', () => {
   it('throws on unknown actor', () => {
     expect(() => parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: XYZ x')).toThrow(/Unknown actor/)
   })
+
+  it('throws on the retired generic actor H', () => {
+    expect(() => parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: H x')).toThrow(/Unknown actor/)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -258,11 +262,11 @@ describe('parseHand — throws on malformed input', () => {
 
 describe('parseHand — stakes line', () => {
   it('stakes absent when not in input', () => {
-    expect(parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15').stakes).toBeUndefined()
+    expect(parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15').stakes).toBeUndefined()
   })
 
   it('stakes value is trimmed', () => {
-    expect(parseHand('[Stakes:  $5/$10 ]\nBoard:\nHero: H AhKs\nPreflop: H x').stakes).toBe('$5/$10')
+    expect(parseHand('[Stakes:  $5/$10 ]\nBoard:\nHero: BTN AhKs\nPreflop: BTN x').stakes).toBe('$5/$10')
   })
 })
 

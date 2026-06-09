@@ -26,33 +26,33 @@ describe('computePotAtStreetStart — mandatory spec tests', () => {
   })
 
   it('multi-street tracking — pot at Flop (Stakes 2/5)', () => {
-    // H raises 25, BB calls → pot at Flop = 52
+    // BTN raises 25, BB calls → pot at Flop = 52
     const state = parseHand(
-      '[Stakes: 2/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: H r 25, BB c',
+      '[Stakes: 2/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 25, BB c',
     )
     expect(computePotAtStreetStart(state, 1)).toBe(52)
   })
 
   it('multi-street tracking — pot at Turn (Stakes 2/5)', () => {
-    // Preflop: H raises 25, BB calls (pot=52). Flop: BB bets 10, H calls → pot at Turn = 72
+    // Preflop: BTN raises 25, BB calls (pot=52). Flop: BB bets 10, BTN calls → pot at Turn = 72
     const state = parseHand(
-      '[Stakes: 2/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: H r 25, BB c\nFlop: BB b 10, H c',
+      '[Stakes: 2/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 25, BB c\nFlop: BB b 10, BTN c',
     )
     expect(computePotAtStreetStart(state, 2)).toBe(72)
   })
 
   it('multi-street tracking — pot at River (Stakes 2/5)', () => {
-    // Turn: BB checks, H checks → pot unchanged at 72
+    // Turn: BB checks, BTN checks → pot unchanged at 72
     const state = parseHand(
-      '[Stakes: 2/5]\nBoard: As 8h Td 2c\nHero: BTN AhKs\nPreflop: H r 25, BB c\nFlop: BB b 10, H c\nTurn: BB x, H x',
+      '[Stakes: 2/5]\nBoard: As 8h Td 2c\nHero: BTN AhKs\nPreflop: BTN r 25, BB c\nFlop: BB b 10, BTN c\nTurn: BB x, BTN x',
     )
     expect(computePotAtStreetStart(state, 3)).toBe(72)
   })
 
   it('multi-street tracking — pot at Showdown (Stakes 2/5)', () => {
-    // River: BB bets 30, H raises 100, BB calls → pot at Showdown = 272
+    // River: BB bets 30, BTN raises 100, BB calls → pot at Showdown = 272
     const state = parseHand(
-      '[Stakes: 2/5]\nBoard: As 8h Td 2c 3d\nHero: BTN AhKs\nPreflop: H r 25, BB c\nFlop: BB b 10, H c\nTurn: BB x, H x\nRiver: BB b 30, H r 100, BB c',
+      '[Stakes: 2/5]\nBoard: As 8h Td 2c 3d\nHero: BTN AhKs\nPreflop: BTN r 25, BB c\nFlop: BB b 10, BTN c\nTurn: BB x, BTN x\nRiver: BB b 30, BTN r 100, BB c',
     )
     expect(computePotAtStreetStart(state, 4)).toBe(272)
   })
@@ -106,14 +106,14 @@ describe('computePotAtStreetStart — mandatory spec tests', () => {
 describe('computePotAtStreetStart — edge cases', () => {
   it('pot at Preflop start is always 0', () => {
     const state = parseHand(
-      '[Stakes: 2/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15, BB c',
+      '[Stakes: 2/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15, BB c',
     )
     expect(computePotAtStreetStart(state, 0)).toBe(0)
   })
 
   it('works without stakes (pot is 0 for all streets)', () => {
     const state = parseHand(
-      'Board: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15, BB c',
+      'Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15, BB c',
     )
     expect(computePotAtStreetStart(state, 1)).toBe(30)
   })
@@ -158,27 +158,27 @@ describe('computePotAtStreetStart — unanswered raises', () => {
   })
 
   it('uncalled flop bet returns entire bet', () => {
-    // Preflop: H r 15, BB c → pot = 32 at flop. Flop: BB b 20, H f → BB's 20 is returned
+    // Preflop: BTN r 15, BB c → pot = 32 at flop. Flop: BB b 20, BTN f → BB's 20 is returned
     const state = parseHand(
-      '[Stakes: 2/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15, BB c\nFlop: BB b 20, H f',
+      '[Stakes: 2/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15, BB c\nFlop: BB b 20, BTN f',
     )
     expect(computePotAtStreetStart(state, 2)).toBe(32)
   })
 
   it('uncalled flop raise: caller wins only contested portion', () => {
-    // Preflop pot = 32. Flop: BB b 20, H r 80, BB f → H capped at BB's 20.
-    // Flop contributions = BB(20) + H(20) = 40. Total = 32 + 40 = 72
+    // Preflop pot = 32. Flop: BB b 20, BTN r 80, BB f → BTN capped at BB's 20.
+    // Flop contributions = BB(20) + BTN(20) = 40. Total = 32 + 40 = 72
     const state = parseHand(
-      '[Stakes: 2/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15, BB c\nFlop: BB b 20, H r 80, BB f',
+      '[Stakes: 2/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15, BB c\nFlop: BB b 20, BTN r 80, BB f',
     )
     expect(computePotAtStreetStart(state, 2)).toBe(72)
   })
 
   it('showdown pot excludes unanswered raise on river', () => {
-    // Preflop H r 15 BB c (pot=32). Flop BB b 10 H c (pot=52). River BB b 30 H r 100 BB f
-    // River: H capped at BB's 30. River contributions = BB(30)+H(30)=60. Total = 52+60 = 112
+    // Preflop BTN r 15 BB c (pot=32). Flop BB b 10 BTN c (pot=52). River BB b 30 BTN r 100 BB f
+    // River: BTN capped at BB's 30. River contributions = BB(30)+BTN(30)=60. Total = 52+60 = 112
     const state = parseHand(
-      '[Stakes: 2/5]\nBoard: As 8h Td 2c 3d\nHero: BTN AhKs\nPreflop: H r 15, BB c\nFlop: BB b 10, H c\nRiver: BB b 30, H r 100, BB f',
+      '[Stakes: 2/5]\nBoard: As 8h Td 2c 3d\nHero: BTN AhKs\nPreflop: BTN r 15, BB c\nFlop: BB b 10, BTN c\nRiver: BB b 30, BTN r 100, BB f',
     )
     expect(computePotAtStreetStart(state, state.streets.length)).toBe(112)
   })
@@ -198,15 +198,15 @@ describe('computePotAtStreetStart — custom stakes', () => {
   })
 
   it('handles 3/5 stakes with hero raise and BB call', () => {
-    // SB=3, BB=5; H raises to 20, BB calls → SB=3 left in pot, H=20, BB=20 → pot = 43
+    // SB=3, BB=5; BTN raises to 20, BB calls → SB=3 left in pot, BTN=20, BB=20 → pot = 43
     const state = parseHand(
-      '[Stakes: 3/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: H r 20, BB c',
+      '[Stakes: 3/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 20, BB c',
     )
     expect(computePotAtStreetStart(state, 1)).toBe(43)
   })
 
   it('parseHand preserves custom stakes string verbatim', () => {
-    const state = parseHand('[Stakes: 3/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: H r 20, BB c')
+    const state = parseHand('[Stakes: 3/5]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 20, BB c')
     expect(state.stakes).toBe('3/5')
   })
 })

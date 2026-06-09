@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 
 // Test 37
 test('Recording screen shows the recorded hand\'s chips pre-populated', async ({ page }) => {
-  await expect(page.locator('[data-chip-id="hero:pos"]')).toHaveText('BTN')
+  await expect(page.locator('[data-chip-id="hero:pos"]')).toHaveText('H (BTN)')
   await expect(page.locator('[data-chip-id="hero:card:0"]')).toHaveText('A♥')
   await expect(page.locator('[data-chip-id="hero:card:1"]')).toHaveText('K♠')
 })

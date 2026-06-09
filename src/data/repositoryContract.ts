@@ -4,13 +4,13 @@ import type { HandRepository, ListedHand } from './repository'
 const SAMPLE_RAW = `[Stakes: $2/$5]
 Board: As 8h Td
 Hero: BTN AhKs
-Preflop: H r 15, BB c
-Flop: BB x, H b 20, BB c`
+Preflop: BTN r 15, BB c
+Flop: BB x, BTN b 20, BB c`
 
 const SAMPLE_RAW_2 = `Board: Kd Qh Jc
 Hero: CO 7s7d
-Preflop: H r 12, BB c
-Flop: BB x, H b 30, BB f`
+Preflop: CO r 12, BB c
+Flop: BB x, CO b 30, BB f`
 
 export function runRepositoryContract(makeRepo: () => HandRepository): void {
   let repo: HandRepository

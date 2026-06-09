@@ -38,10 +38,10 @@ function shape(state: HandState) {
 const FULL_HAND_RAW = `[Stakes: $2/$5]
 Board: As 8h Td
 Hero: BTN AhKs
-Preflop: H r 15, BB c
-Flop: BB x, H b 20, BB c
-Turn: BB x, H x
-River: BB b 40, H f`
+Preflop: BTN r 15, BB c
+Flop: BB x, BTN b 20, BB c
+Turn: BB x, BTN x
+River: BB b 40, BTN f`
 
 describe('serializeHand — basic', () => {
   it('produces the exact expected string for the full hand', () => {
@@ -49,13 +49,13 @@ describe('serializeHand — basic', () => {
   })
 
   it('omits the Stakes line when stakes absent', () => {
-    const result = serializeHand(parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15, BB c'))
+    const result = serializeHand(parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15, BB c'))
     expect(result).not.toContain('[Stakes:')
     expect(result.split('\n')[0]).toBe('Board: As 8h Td')
   })
 
   it('Stakes line appears first when present', () => {
-    const result = serializeHand(parseHand('[Stakes: $1/$2]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: H r 15'))
+    const result = serializeHand(parseHand('[Stakes: $1/$2]\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15'))
     expect(result.split('\n')[0]).toBe('[Stakes: $1/$2]')
   })
 
@@ -66,8 +66,8 @@ describe('serializeHand — basic', () => {
   })
 
   it('serializes "all in" canonically (verb a → "all in")', () => {
-    const result = serializeHand(parseHand('Board: As 8h Td\nHero: H AhKs\nPreflop: H all in 200'))
-    expect(result).toContain('H all in 200')
+    const result = serializeHand(parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN all in 200'))
+    expect(result).toContain('BTN all in 200')
   })
 
   it('throws when the state is incomplete', () => {
@@ -85,18 +85,18 @@ describe('round-trip: parse(serialize(state)) ≡ state', () => {
     'full hand with 5-card board': `[Stakes: $2/$5]
 Board: As 8h Td Jc 2s
 Hero: BTN AhKs
-Preflop: H r 15, BB c
-Flop: BB x, H b 20, BB c
-Turn: BB x, H x
-River: BB b 40, H f`,
-    'multiple villains': `Board: As 8h Td
+Preflop: BTN r 15, BB c
+Flop: BB x, BTN b 20, BB c
+Turn: BB x, BTN x
+River: BB b 40, BTN f`,
+    'multiway pot': `Board: As 8h Td
 Hero: BTN AhKs
-Preflop: V r 10, V2 c, H r 30, V f, V2 c
-Flop: V2 x, H b 25, V2 c`,
+Preflop: SB r 10, CO c, BTN r 30, SB f, CO c
+Flop: CO x, BTN b 25, CO c`,
     'with showdown': `Board: As 8h Td
 Hero: BTN AhKs
-Preflop: H c
-Showdown: V wins`,
+Preflop: BTN c, BB x
+Showdown: BB wins`,
   }
 
   for (const [name, raw] of Object.entries(cases)) {
@@ -114,7 +114,7 @@ Showdown: V wins`,
 
 describe('round-trip: notes are preserved', () => {
   it('re-emits a note at its anchored section', () => {
-    const raw = 'Board: As 8h Td\n# hero looks weak\nHero: BTN AhKs\nPreflop: H x'
+    const raw = 'Board: As 8h Td\n# hero looks weak\nHero: BTN AhKs\nPreflop: BTN x'
     const state = parseHand(raw)
     const serialized = serializeHand(state)
     expect(serialized).toContain('# hero looks weak')

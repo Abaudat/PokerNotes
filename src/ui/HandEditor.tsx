@@ -35,7 +35,7 @@ import {
   editShowdownVerb,
   editShowdownCard,
 } from '../core/engine'
-import { buildEditorView, POSITION_COLORS, HERO_COLOR } from '../core/render'
+import { buildEditorView, POSITION_COLORS, HERO_COLOR, VILLAIN_COLOR } from '../core/render'
 import type { Chip } from '../core/render'
 import type { HandState, Verb, Card, ShowdownVerb, StreetName } from '../core/types'
 
@@ -61,8 +61,7 @@ function toCard(code: string): Card {
 }
 
 function actorColor(actor: string): string {
-  if (actor === 'H') return HERO_COLOR
-  return POSITION_COLORS[actor as Exclude<keyof typeof POSITION_COLORS, 'H'>] ?? '#6b7280'
+  return POSITION_COLORS[actor as keyof typeof POSITION_COLORS] ?? '#6b7280'
 }
 
 function CardGrid({
@@ -320,8 +319,9 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
       return { ...base, background: HERO_COLOR, color: '#000', border: 'none', fontWeight: 700 }
     }
     if (chip.kind === 'action-actor' || chip.kind === 'showdown-actor') {
-      const color = actorColor(chip.meta?.actor ?? '')
-      return { ...base, color, fontWeight: chip.meta?.actor === 'H' ? 700 : 500 }
+      const marker = chip.meta?.marker
+      const color = marker === 'H' ? HERO_COLOR : marker === 'V' ? VILLAIN_COLOR : actorColor(chip.meta?.actor ?? '')
+      return { ...base, color, fontWeight: marker === 'H' ? 700 : marker === 'V' ? 600 : 500 }
     }
     if (chip.kind === 'action-verb' || chip.kind === 'showdown-verb') {
       return { ...base, color: 'var(--text-muted)' }

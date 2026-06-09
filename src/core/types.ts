@@ -21,10 +21,6 @@ export interface Card {
 }
 
 export type Position =
-  | 'H'
-  | 'V'
-  | 'V2'
-  | 'V3'
   | 'UTG'
   | 'UTG+1'
   | 'UTG+2'
@@ -36,6 +32,12 @@ export type Position =
   | 'BB'
   | 'EP'
   | 'MP'
+
+/**
+ * A derived role marker shown alongside a position (never stored on the model).
+ * 'H' = hero's seat; 'V' = the single villain when the hand is heads-up by the flop.
+ */
+export type Marker = 'H' | 'V'
 
 /** x=check, c=call, r=raise, f=fold, b=bet, a=all-in */
 export type Verb = 'x' | 'c' | 'r' | 'f' | 'b' | 'a'

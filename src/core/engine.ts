@@ -9,6 +9,7 @@ import type {
   ShowdownVerb,
   NextStep,
   NoteAnchor,
+  Marker,
 } from './types'
 
 // ---------------------------------------------------------------------------
@@ -22,15 +23,13 @@ export const POSITION_ORDER: Position[] = [
 export const POSTFLOP_POSITION_ORDER: Position[] = [
   'SB', 'BB', 'UTG', 'UTG+1', 'UTG+2', 'UTG+3', 'HJ', 'CO', 'BTN',
 ]
-export const GENERIC_POSITIONS: Position[] = ['H', 'V', 'V2', 'V3']
-
 /** Seat speaking order for the given street (preflop puts blinds last). */
 function orderFor(streetName: StreetName): Position[] {
   return streetName === 'Preflop' ? POSITION_ORDER : POSTFLOP_POSITION_ORDER
 }
 
 export const ALL_POSITIONS: Position[] = [
-  'H', 'V', 'V2', 'V3', 'UTG', 'UTG+1', 'UTG+2', 'UTG+3',
+  'UTG', 'UTG+1', 'UTG+2', 'UTG+3',
   'HJ', 'CO', 'BTN', 'SB', 'BB', 'EP', 'MP',
 ]
 
@@ -76,12 +75,9 @@ function uniqueActors(actions: Action[]): Position[] {
 
 function sortPositions(positions: Position[], order: Position[] = POSITION_ORDER): Position[] {
   const set = new Set(positions)
-  const generics = GENERIC_POSITIONS.filter((p) => set.has(p))
   const ordered = order.filter((p) => set.has(p))
-  const others = positions.filter(
-    (p) => !GENERIC_POSITIONS.includes(p) && !order.includes(p),
-  )
-  return [...generics, ...ordered, ...others]
+  const others = positions.filter((p) => !order.includes(p))
+  return [...ordered, ...others]
 }
 
 /** True if any of these actions was a bet / raise / all-in. */
@@ -137,9 +133,7 @@ function buildReopenOptions(
         ? order.filter((p) => !beforeSet.has(p) && !cannotAct.has(p))
         : order.slice(reopenerIdx + 1).filter((p) => !cannotAct.has(p))
     const orderedSecond = order.filter((p) => beforeSet.has(p) && p !== reopener && !cannotAct.has(p))
-    const genFirst = GENERIC_POSITIONS.filter((p) => !beforeSet.has(p) && p !== reopener && !cannotAct.has(p))
-    const genSecond = GENERIC_POSITIONS.filter((p) => beforeSet.has(p) && p !== reopener && !cannotAct.has(p))
-    responseOrder = [...genFirst, ...orderedFirst, ...genSecond, ...orderedSecond]
+    responseOrder = [...orderedFirst, ...orderedSecond]
   } else {
     const orderedFirst = preflopActors.filter((p) => {
       if (p === reopener) return false
@@ -200,17 +194,14 @@ export function legalActorsToAct(
   const lastActor = completed.length > 0 ? completed[completed.length - 1].actor : null
 
   if (streetName === 'Preflop') {
-    const generics = GENERIC_POSITIONS.filter((p) => !spokenSet.has(p) && !cannotAct.has(p))
     let maxSpokenIdx = -1
     for (const a of completed) {
       const idx = order.indexOf(a.actor)
       if (idx > maxSpokenIdx) maxSpokenIdx = idx
     }
-    const ordered =
-      maxSpokenIdx === -1
-        ? order.filter((p) => !spokenSet.has(p) && !cannotAct.has(p))
-        : order.slice(maxSpokenIdx + 1).filter((p) => !cannotAct.has(p))
-    return [...generics, ...ordered]
+    return maxSpokenIdx === -1
+      ? order.filter((p) => !spokenSet.has(p) && !cannotAct.has(p))
+      : order.slice(maxSpokenIdx + 1).filter((p) => !cannotAct.has(p))
   }
 
   if (!lastActor) return sortPositions(preflopActors.filter((p) => !cannotAct.has(p)), order)
@@ -351,12 +342,10 @@ export function legalVerbs(
   streetName: StreetName,
   actor: Position,
   prior: Action[],
-  heroPosition?: Position,
 ): VerbOptions {
   if (streetName === 'Preflop') {
-    const resolved = actor === 'H' && heroPosition ? heroPosition : actor
     const hasRaise = hasBetOrRaise(prior)
-    if (resolved === 'BB' && !hasRaise) {
+    if (actor === 'BB' && !hasRaise) {
       return { verbs: ['x', 'r', 'f', 'a'], facingBet: false, bbOption: true }
     }
     return { verbs: ['c', 'r', 'f', 'a'], facingBet: true, bbOption: false }
@@ -420,10 +409,45 @@ function activePoolAtShowdown(state: HandState): Position[] {
 export function showdownEligibleActors(state: HandState, excludeActors: Set<Position> = new Set()): Position[] {
   const folded = foldedActors(state)
   const pool = activePoolAtShowdown(state)
-  const allowed = new Set<Position>([...pool, 'H', 'V'])
+  const allowed = new Set<Position>(pool)
   return ALL_POSITIONS.filter(
     (p) => allowed.has(p) && !folded.has(p) && !excludeActors.has(p),
   )
+}
+
+// ---------------------------------------------------------------------------
+// Hero / villain marker derivation (presentation only — never stored)
+// ---------------------------------------------------------------------------
+
+/** Active pool entering the flop, derived from the preflop actions. */
+function flopPool(state: HandState): Position[] {
+  const preflop = state.streets.find((s) => s.name === 'Preflop')
+  return preflop ? postflopActors(preflop.actions) : []
+}
+
+/**
+ * The single villain seat, defined only when the hand is heads-up by the flop:
+ * the flop pool contains the hero plus exactly one other player.
+ */
+export function villainPosition(state: HandState): Position | undefined {
+  const hero = state.hero?.position
+  if (hero === undefined) return undefined
+  const pool = flopPool(state)
+  if (!pool.includes(hero)) return undefined
+  const others = pool.filter((p) => p !== hero)
+  return others.length === 1 ? others[0] : undefined
+}
+
+/** The derived marker for a position, if any. Legacy 'H'/'V' actors pass through. */
+export function markerFor(state: HandState, actor: Position): Marker | undefined {
+  if (actor === state.hero?.position) return 'H'
+  if (actor === villainPosition(state)) return 'V'
+  return undefined
+}
+
+/** Display label for a seat: "H (SB)" / "V (BB)", or just the position. */
+export function markerLabel(actor: Position, marker?: Marker): string {
+  return marker ? `${marker} (${actor})` : actor
 }
 
 // ---------------------------------------------------------------------------
@@ -452,11 +476,10 @@ function streetNextStep(
 ): NextStep {
   const actions = street.actions
   const trailing = actions[actions.length - 1]
-  const heroPos = state.hero?.position
 
   if (trailing && trailing.verb === undefined) {
     const prior = actions.slice(0, -1)
-    const { verbs, facingBet, bbOption } = legalVerbs(street.name, trailing.actor, prior, heroPos)
+    const { verbs, facingBet, bbOption } = legalVerbs(street.name, trailing.actor, prior)
     return { kind: 'verb', street: street.name, actor: trailing.actor, options: verbs, facingBet, bbOption }
   }
 
@@ -644,7 +667,7 @@ export function legalVerbsForActionSlot(state: HandState, streetName: StreetName
   if (!street) return { verbs: ['x', 'c', 'r', 'f', 'b', 'a'], facingBet: false, bbOption: false }
   const action = street.actions[index]
   const prior = street.actions.slice(0, index)
-  return legalVerbs(streetName, action.actor, prior, state.hero?.position)
+  return legalVerbs(streetName, action.actor, prior)
 }
 
 export function legalShowdownActorsForSlot(state: HandState, index: number): Position[] {
@@ -691,7 +714,8 @@ export function setHeroPosition(state: HandState, position: Position): HandState
 }
 
 export function setHeroCards(state: HandState, cards: [Card, Card]): HandState {
-  const position = state.hero?.position ?? 'H'
+  const position = state.hero?.position
+  if (position === undefined) return state
   return { ...state, hero: { position, cards } }
 }
 
