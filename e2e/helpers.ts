@@ -29,11 +29,12 @@ export async function getTestUserUid(): Promise<string> {
 }
 
 /**
- * Records a minimal hand: no stakes, no board, BTN position, A♥ K♠, Hero calls preflop.
+ * Records a minimal hand: 1/2 stakes, no board, BTN position, A♥ K♠, Hero calls preflop.
  * Ends on the hand detail view (← History button visible).
  */
 export async function recordMinimalHand(page: Page): Promise<void> {
   await page.getByRole('button', { name: '+ New hand' }).click()
+  await page.getByRole('button', { name: '1/2' }).click()
   await page.getByRole('button', { name: 'No board' }).click()
   await page.getByRole('button', { name: 'BTN' }).click()
   await page.getByRole('button', { name: 'A♥' }).click()

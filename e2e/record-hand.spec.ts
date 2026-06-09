@@ -35,6 +35,7 @@ test('Board card picker shows a grid of cards', async ({ page }) => {
 
 // Test 11
 test('Selecting 3 board cards enables the board "Done" button', async ({ page }) => {
+  await page.getByRole('button', { name: '1/2' }).click()
   await page.getByRole('button', { name: 'A♠' }).click()
   await page.getByRole('button', { name: 'K♠' }).click()
   await page.getByRole('button', { name: 'Q♠' }).click()
@@ -43,6 +44,7 @@ test('Selecting 3 board cards enables the board "Done" button', async ({ page })
 
 // Test 12
 test('Board cards already selected as board cards are disabled in the hole card picker', async ({ page }) => {
+  await page.getByRole('button', { name: '1/2' }).click()
   await page.getByRole('button', { name: '2♠' }).click()
   await page.getByRole('button', { name: '3♠' }).click()
   await page.getByRole('button', { name: '4♠' }).click()
@@ -53,6 +55,7 @@ test('Board cards already selected as board cards are disabled in the hole card 
 
 // Test 13
 test('Clicking a hero position selects it and advances the wizard', async ({ page }) => {
+  await page.getByRole('button', { name: '1/2' }).click()
   await page.getByRole('button', { name: 'No board' }).click()
   await page.getByRole('button', { name: 'BTN' }).click()
   await expect(page.getByText(/Hero hole cards/)).toBeVisible()
@@ -60,6 +63,7 @@ test('Clicking a hero position selects it and advances the wizard', async ({ pag
 
 // Test 14
 test('Selecting 2 hole cards enables the Save button (minimal hand)', async ({ page }) => {
+  await page.getByRole('button', { name: '1/2' }).click()
   await page.getByRole('button', { name: 'No board' }).click()
   await page.getByRole('button', { name: 'BTN' }).click()
   await page.getByRole('button', { name: 'A♥' }).click()
@@ -69,6 +73,7 @@ test('Selecting 2 hole cards enables the Save button (minimal hand)', async ({ p
 
 // Test 15
 test('Save button is disabled before hole cards are entered', async ({ page }) => {
+  await page.getByRole('button', { name: '1/2' }).click()
   await page.getByRole('button', { name: 'No board' }).click()
   await page.getByRole('button', { name: 'BTN' }).click()
   await expect(page.getByRole('button', { name: 'Pick 2 cards' })).toBeDisabled()
@@ -76,6 +81,7 @@ test('Save button is disabled before hole cards are entered', async ({ page }) =
 
 // Test 16
 test('Undo button reverts the most recent wizard step', async ({ page }) => {
+  await page.getByRole('button', { name: '1/2' }).click()
   await page.getByRole('button', { name: 'No board' }).click()
   await page.getByRole('button', { name: '← Undo' }).click()
   await expect(page.getByRole('button', { name: 'No board' })).toBeVisible()
@@ -89,6 +95,7 @@ test('Free-text toggle ("···") replaces the wizard with a textarea', async ({
 
 // Test 18
 test('Saving a hand navigates to the hand detail view', async ({ page }) => {
+  await page.getByRole('button', { name: '1/2' }).click()
   await page.getByRole('button', { name: 'No board' }).click()
   await page.getByRole('button', { name: 'BTN' }).click()
   await page.getByRole('button', { name: 'A♥' }).click()

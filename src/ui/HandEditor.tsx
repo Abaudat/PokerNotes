@@ -517,14 +517,11 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
               key={s}
               className={selectedStakes === s ? 'btn-primary' : 'btn-secondary'}
               style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
-              onClick={() => setSelectedStakes((prev) => (prev === s ? null : s))}
+              onClick={() => setSelectedStakes(s)}
             >
               {s}
             </button>
           ))}
-          {selectedStakes && (
-            <button className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }} onClick={() => setSelectedStakes(null)}>None</button>
-          )}
         </div>
         <CardGrid
           usedCards={new Set()}
@@ -539,10 +536,10 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
         />
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
           {pendingCards.length === 0 && (
-            <button className="btn-secondary" onClick={() => commitBoard([])}>No board</button>
+            <button className="btn-secondary" disabled={!selectedStakes} onClick={() => commitBoard([])}>No board</button>
           )}
           {pendingCards.length > 0 && (
-            <button className="btn-primary" disabled={!validCount} onClick={() => commitBoard(pendingCards.map(toCard))}>
+            <button className="btn-primary" disabled={!validCount || !selectedStakes} onClick={() => commitBoard(pendingCards.map(toCard))}>
               Done ({pendingCards.length})
             </button>
           )}
