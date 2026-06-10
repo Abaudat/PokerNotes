@@ -51,17 +51,18 @@ export default function App() {
     return onAuthStateChanged(auth, setUser)
   }, [])
 
+  const uid = user?.uid
   useEffect(() => {
-    if (!user) {
+    if (!uid) {
       setHands([])
       repoRef.current = null
       return
     }
     const db = getFirestore(getFirebaseApp())
-    const repo = new FirestoreRepository(user.uid, db)
+    const repo = new FirestoreRepository(uid, db)
     repoRef.current = repo
     return repo.subscribe(setHands)
-  }, [user?.uid])
+  }, [uid])
 
   async function saveHand(raw: string, state: HandState) {
     if (!repoRef.current) return
@@ -69,7 +70,7 @@ export default function App() {
     setView({ kind: 'view', hand: { id, raw, state, savedAt: new Date() } })
   }
 
-  async function updateHand(id: string, raw: string, _state: HandState) {
+  async function updateHand(id: string, raw: string) {
     if (!repoRef.current) return
     await repoRef.current.update(id, raw)
     setView({ kind: 'history' })
@@ -161,7 +162,7 @@ export default function App() {
           defaultStakes={view.handId ? undefined : hands[0]?.summary.stakes}
           onSave={
             view.handId
-              ? (raw, ast) => updateHand(view.handId!, raw, ast)
+              ? (raw) => updateHand(view.handId!, raw)
               : saveHand
           }
           onCancel={() => setView({ kind: 'history' })}

@@ -3,6 +3,12 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 
+declare global {
+  interface Window {
+    __signInForTest?: (email: string, password: string) => Promise<void>
+  }
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const AUTH_FILE = path.join(__dirname, '.auth', 'user.json')
 const TEST_EMAIL = 'playwright@test.com'
@@ -39,14 +45,14 @@ export default async function globalSetup() {
 
   // Wait for the app to load and the test seam to be available
   await page.waitForFunction(
-    () => typeof (window as any).__signInForTest === 'function',
+    () => typeof window.__signInForTest === 'function',
     undefined,
     { timeout: 10000 }
   )
 
   await page.evaluate(
     async ({ email, password }: { email: string; password: string }) => {
-      await (window as any).__signInForTest(email, password)
+      await window.__signInForTest!(email, password)
     },
     { email: TEST_EMAIL, password: TEST_PASSWORD }
   )

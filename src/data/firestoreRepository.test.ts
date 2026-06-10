@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { doc, setDoc, getDoc, collection } from 'firebase/firestore'
+import type { Firestore } from 'firebase/firestore'
 import { FirestoreRepository } from './firestoreRepository'
 import { runRepositoryContract } from './repositoryContract'
 
@@ -44,7 +45,7 @@ beforeEach(async () => {
 describe('FirestoreRepository', () => {
   runRepositoryContract(() => {
     const ctx = testEnv.authenticatedContext(UID)
-    return new FirestoreRepository(UID, ctx.firestore() as any)
+    return new FirestoreRepository(UID, ctx.firestore() as unknown as Firestore)
   })
 })
 
