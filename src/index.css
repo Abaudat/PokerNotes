@@ -38,11 +38,11 @@
   --radius-sm: 7px;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
 
-  /* suit colors on dark surfaces */
+  /* suit colors on dark surfaces (2-color deck: red for h/d, light for s/c) */
   --suit-s: #b9c2cf;
   --suit-h: #e07a7a;
-  --suit-d: #6da6dd;
-  --suit-c: #74b88a;
+  --suit-d: #e07a7a;
+  --suit-c: #b9c2cf;
 }
 
 * {
@@ -353,8 +353,8 @@ textarea {
 
 .playing-card .suit-s { color: #23282e; }
 .playing-card .suit-h { color: #b3372f; }
-.playing-card .suit-d { color: #295e9e; }
-.playing-card .suit-c { color: #2b6e44; }
+.playing-card .suit-d { color: #b3372f; }
+.playing-card .suit-c { color: #23282e; }
 
 /* suit colors for text on dark surfaces */
 .suit-s { color: var(--suit-s); }
