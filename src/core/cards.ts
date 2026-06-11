@@ -47,3 +47,12 @@ export function parseCard(s: string): Card | null {
 export function formatCard(c: Card): string {
   return c.rank + c.suit
 }
+
+/**
+ * Returns the pair ordered highest rank first.
+ * Equal ranks (impossible in a real deck) preserve the original order.
+ */
+export function sortCards(cards: [Card, Card]): [Card, Card] {
+  const [a, b] = cards
+  return RANKS.indexOf(a.rank) >= RANKS.indexOf(b.rank) ? [a, b] : [b, a]
+}
