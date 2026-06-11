@@ -2,22 +2,22 @@ import { formatCard, SUIT_GLYPHS } from './cards'
 import { computePotAtStreetStart, markerFor, markerLabel } from './engine'
 import type { HandState, Position, StreetName, Verb, Card, Marker } from './types'
 
-export const HERO_COLOR = '#f59e0b'
+export const HERO_COLOR = '#d4ab5a'
 /** Distinct colour for the lone villain's marked seat. */
-export const VILLAIN_COLOR = '#6b7280'
+export const VILLAIN_COLOR = '#929daf'
 
 export const POSITION_COLORS: Record<Position, string> = {
-  UTG: '#ef4444',
-  'UTG+1': '#f97316',
-  'UTG+2': '#eab308',
-  'UTG+3': '#84cc16',
-  HJ: '#22c55e',
-  CO: '#06b6d4',
-  BTN: '#3b82f6',
-  SB: '#8b5cf6',
-  BB: '#ec4899',
-  EP: '#14b8a6',
-  MP: '#a855f7',
+  UTG: '#c96a60',
+  'UTG+1': '#cd8a55',
+  'UTG+2': '#a8b35c',
+  'UTG+3': '#82b56e',
+  HJ: '#5fae7e',
+  CO: '#58a9ba',
+  BTN: '#6d9ee0',
+  SB: '#9b85d6',
+  BB: '#cd7ba8',
+  EP: '#5cb5a2',
+  MP: '#b189d3',
 }
 
 function actorColor(position: string): string {

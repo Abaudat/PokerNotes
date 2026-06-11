@@ -92,25 +92,23 @@ export default function App() {
 
   if (user === undefined) {
     return (
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '1.5rem 1rem', textAlign: 'center' }}>
-        <h1 style={{ color: 'var(--accent)' }}>PokerNotes</h1>
-        <p style={{ color: 'var(--text-muted)' }}>Loading…</p>
+      <div className="app-shell" style={{ textAlign: 'center', paddingTop: '4rem' }}>
+        <h1 className="brand-large">PokerNotes</h1>
+        <p className="muted" style={{ marginTop: '0.75rem' }}>Loading…</p>
       </div>
     )
   }
 
   if (!user) {
     return (
-      <div style={{ maxWidth: 480, margin: '4rem auto', padding: '1.5rem 1rem', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--accent)', marginBottom: '1rem' }}>
-          PokerNotes
-        </h1>
-        <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
+      <div className="app-shell" style={{ maxWidth: 480, textAlign: 'center', paddingTop: '5rem' }}>
+        <h1 className="brand-large">PokerNotes</h1>
+        <p className="muted" style={{ margin: '1.25rem 0 2.25rem', fontSize: '0.95rem' }}>
           Sign in to record and sync your hands across devices.
         </p>
         <button
           className="btn-primary"
-          style={{ fontSize: '1rem', padding: '0.6rem 1.4rem' }}
+          style={{ fontSize: '1rem', padding: '0.6rem 1.6rem' }}
           onClick={() => {
             const auth = getAuth(getFirebaseApp())
             signInWithPopup(auth, new GoogleAuthProvider())
@@ -123,25 +121,17 @@ export default function App() {
   }
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto', padding: '1.5rem 1rem' }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-        <h1
-          style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent)', cursor: 'pointer' }}
-          onClick={() => setView({ kind: 'history' })}
-        >
+    <div className="app-shell">
+      <header className="app-header">
+        <h1 className="brand" onClick={() => setView({ kind: 'history' })}>
           PokerNotes
         </h1>
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+        <span className="header-count">
           {hands.length} hand{hands.length !== 1 ? 's' : ''}
         </span>
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            {user.displayName ?? user.email}
-          </span>
-          <button
-            style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem' }}
-            onClick={() => signOut(getAuth(getFirebaseApp()))}
-          >
+        <span className="header-user">
+          <span className="header-email">{user.displayName ?? user.email}</span>
+          <button className="btn-ghost" onClick={() => signOut(getAuth(getFirebaseApp()))}>
             Sign out
           </button>
         </span>
