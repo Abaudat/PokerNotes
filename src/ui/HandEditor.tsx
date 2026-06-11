@@ -35,6 +35,7 @@ import {
   editShowdownActor,
   editShowdownVerb,
   editShowdownCard,
+  legalActorsForNewActionOnStreet,
 } from '../core/engine'
 import { buildEditorView, POSITION_COLORS, HERO_COLOR, VILLAIN_COLOR } from '../core/render'
 import { CardGlyph } from './cardGlyphs'
@@ -207,6 +208,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
   const [showFree, setShowFree] = useState(false)
   const [activeEdit, setActiveEdit] = useState<Chip | null>(null)
   const [amountEntry, setAmountEntry] = useState<AmountEntry | null>(null)
+  const [addingToStreet, setAddingToStreet] = useState<StreetName | null>(null)
 
   // ── Core state transition: snapshot for undo, apply, reset transient UI ──────
   function apply(next: HandState) {
@@ -218,6 +220,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     setActiveEdit(null)
     setShowFree(false)
     setFreeInput('')
+    setAddingToStreet(null)
   }
 
   function undo() {
@@ -228,6 +231,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     setAmountInput('')
     setAmountEntry(null)
     setActiveEdit(null)
+    setAddingToStreet(null)
   }
 
   function handleSave() {
@@ -277,6 +281,19 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     apply(addNote(state, note))
   }
 
+  function startAddingToStreet(streetName: StreetName) {
+    setPendingCards([])
+    setAmountEntry(null)
+    setAmountInput('')
+    setActiveEdit(null)
+    setAddingToStreet(streetName)
+  }
+
+  function handleAddActionActor(streetName: StreetName, actor: Position) {
+    apply(beginAction(state, streetName, actor))
+    setAddingToStreet(streetName)
+  }
+
   const step = nextStep(state)
   const chipLines = buildEditorView(state)
 
@@ -324,32 +341,51 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     flexShrink: 0,
   }
 
+  const lastStreetName = state.streets[state.streets.length - 1]?.name
+
   const recordedDisplay = chipLines.length > 0 ? (
     <div className="stack-sm">
-      {chipLines.map((line) => (
-        <div key={line.key} className="row-wrap" style={{ gap: '0.35rem' }}>
-          {sectionHeader(line.key) && (
-            <span className="section-label" style={headerStyle}>{sectionHeader(line.key)}</span>
-          )}
-          {line.chips.map((chip) =>
-            chip.editKind ? (
+      {chipLines.map((line) => {
+        const isStreetLine = line.key.startsWith('street:')
+        const lineStreetName = isStreetLine ? line.key.slice('street:'.length) as StreetName : null
+        const isPreviousStreet = lineStreetName !== null && lineStreetName !== lastStreetName
+        const addActors = isPreviousStreet ? legalActorsForNewActionOnStreet(state, lineStreetName) : []
+
+        return (
+          <div key={line.key} className="row-wrap" style={{ gap: '0.35rem' }}>
+            {sectionHeader(line.key) && (
+              <span className="section-label" style={headerStyle}>{sectionHeader(line.key)}</span>
+            )}
+            {line.chips.map((chip) =>
+              chip.editKind ? (
+                <button
+                  key={chip.id}
+                  data-chip-id={chip.id}
+                  onClick={() => openEdit(chip)}
+                  className={chipClass(chip)}
+                  style={chipStyle(chip)}
+                >
+                  {chipContent(chip)}
+                </button>
+              ) : (
+                <span key={chip.id} className={chipClass(chip)} style={chipStyle(chip)}>
+                  {chipContent(chip)}
+                </span>
+              ),
+            )}
+            {addActors.length > 0 && (
               <button
-                key={chip.id}
-                data-chip-id={chip.id}
-                onClick={() => openEdit(chip)}
-                className={chipClass(chip)}
-                style={chipStyle(chip)}
+                className="chip chip-add"
+                data-testid={`add-action-${lineStreetName}`}
+                onClick={() => startAddingToStreet(lineStreetName!)}
+                title={`Add action to ${lineStreetName}`}
               >
-                {chipContent(chip)}
+                +
               </button>
-            ) : (
-              <span key={chip.id} className={chipClass(chip)} style={chipStyle(chip)}>
-                {chipContent(chip)}
-              </span>
-            ),
-          )}
-        </div>
-      ))}
+            )}
+          </div>
+        )
+      })}
     </div>
   ) : null
 
@@ -479,6 +515,39 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
         onSkip={amountEntry.optional ? skipAmount : undefined}
       />
     )
+  } else if (addingToStreet !== null) {
+    const addStreet = state.streets.find((s) => s.name === addingToStreet)
+    const trailing = addStreet?.actions[addStreet.actions.length - 1]
+    const inVerbPhase = trailing && trailing.verb === undefined
+
+    if (inVerbPhase) {
+      const trailingIndex = (addStreet?.actions.length ?? 1) - 1
+      const { verbs } = legalVerbsForActionSlot(state, addingToStreet, trailingIndex)
+      stepLabel = `${addingToStreet}: ${trailing.actor}'s action`
+      stepContent = (
+        <>
+          <ButtonRow>{verbs.map((v) => (
+            <button key={v} className="btn-secondary" onClick={() => chooseVerb(addingToStreet, trailingIndex, v)}>{VERB_LABELS[v]}</button>
+          ))}</ButtonRow>
+          <div style={{ marginTop: '0.5rem' }}>
+            <button className="btn-ghost" onClick={() => undo()}>Cancel</button>
+          </div>
+        </>
+      )
+    } else {
+      const options = legalActorsForNewActionOnStreet(state, addingToStreet)
+      stepLabel = `${addingToStreet}: add action`
+      stepContent = (
+        <>
+          <ButtonRow>{options.map((actor) => (
+            <button key={actor} className="btn-secondary" onClick={() => handleAddActionActor(addingToStreet, actor)}>{suggestionLabel(state, actor, addingToStreet !== 'Preflop')}</button>
+          ))}</ButtonRow>
+          <div style={{ marginTop: '0.5rem' }}>
+            <button className="btn-ghost" onClick={() => setAddingToStreet(null)}>Cancel</button>
+          </div>
+        </>
+      )
+    }
   } else if (step.kind === 'board') {
     const validCount = pendingCards.length === 0 || (pendingCards.length >= 3 && pendingCards.length <= 5)
     const commitBoard = (cards: Card[]) => {

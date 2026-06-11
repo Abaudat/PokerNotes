@@ -676,6 +676,16 @@ export function legalShowdownActorsForSlot(state: HandState, index: number): Pos
   return showdownEligibleActors(state, others)
 }
 
+/** Legal actors for a brand-new action appended to the given street (not editing an existing slot). */
+export function legalActorsForNewActionOnStreet(state: HandState, streetName: StreetName): Position[] {
+  const streetIdx = state.streets.findIndex((s) => s.name === streetName)
+  if (streetIdx === -1) return []
+  const street = state.streets[streetIdx]
+  const pool = activePoolEntering(state, streetIdx)
+  const alreadyAllIn = allInBeforeStreet(state, streetIdx)
+  return legalActorsToAct(streetName, completeActions(street.actions), pool, alreadyAllIn)
+}
+
 // ---------------------------------------------------------------------------
 // Immutable update helpers
 // ---------------------------------------------------------------------------
