@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npm test && npm run lint && npm run build && npm run test:e2e:full",
+            "command": "npm test && npm run lint && npm run build && npm run test:e2e:full || exit 2",
             "if": "Bash(git push *)",
             "shell": "bash",
             "timeout": 600,
