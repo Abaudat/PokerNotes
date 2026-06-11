@@ -62,7 +62,8 @@ npx vitest run -t "breakdown"
   ```bash
   git pull origin main && git checkout -b branch_name_for_feature
   ```
-- **Before pushing:** always run `npm test && npm run build && npm run test:e2e:full` and fix any failures before pushing. `test:e2e:full` starts the Firebase emulator automatically — no separate setup needed.
+- **Before pushing:** no need to manually run tests, build, or lint — the pre-push hook runs them automatically and will block the push on failure.
+- **Running the app:** use `npm run dev` to start the local dev server.
 - A task is only "done" when the code is submitted as a PR to GitHub (`gh pr create`).
 
 ## Build plan context
