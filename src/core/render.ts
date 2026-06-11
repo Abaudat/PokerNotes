@@ -320,18 +320,20 @@ export function buildEditorView(state: HandState): ChipLine[] {
 
   for (let si = 0; si < state.streets.length; si++) {
     const street = state.streets[si]
-    const pot = computePotAtStreetStart(state, si)
-    lines.push({
-      key: `pot:${street.name}`,
-      chips: [
-        {
-          id: `pot:${street.name}`,
-          kind: 'label',
-          text: `Pot: ${pot}`,
-          editKind: null,
-        },
-      ],
-    })
+    if (street.name !== 'Preflop') {
+      const pot = computePotAtStreetStart(state, si)
+      lines.push({
+        key: `pot:${street.name}`,
+        chips: [
+          {
+            id: `pot:${street.name}`,
+            kind: 'label',
+            text: `Pot: ${pot}`,
+            editKind: null,
+          },
+        ],
+      })
+    }
     const chips: Chip[] = []
     street.actions.forEach((action, i) => {
       const marker = markerFor(state, action.actor)

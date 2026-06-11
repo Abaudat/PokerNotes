@@ -60,9 +60,13 @@ export function formatForExport(state: HandState): string {
 
   for (let i = 0; i < state.streets.length; i++) {
     const street = state.streets[i]
-    const pot = computePotAtStreetStart(state, i)
     const actions = street.actions.map((a) => formatAction(state, a)).join(', ')
-    lines.push(`${street.name} (Pot: ${pot}): ${actions}`)
+    if (street.name === 'Preflop') {
+      lines.push(`${street.name}: ${actions}`)
+    } else {
+      const pot = computePotAtStreetStart(state, i)
+      lines.push(`${street.name} (Pot: ${pot}): ${actions}`)
+    }
   }
 
   if (state.showdown) {
