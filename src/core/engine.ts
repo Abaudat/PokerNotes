@@ -687,6 +687,24 @@ export function legalActorsForNewActionOnStreet(state: HandState, streetName: St
   return legalActorsToAct(streetName, completeActions(street.actions), pool, alreadyAllIn)
 }
 
+/** Legal verbs for a new (not-yet-added) action by the candidate actor appended to the given street. */
+export function legalVerbsForNewAction(state: HandState, streetName: StreetName, actor: Position): VerbOptions {
+  const street = state.streets.find((s) => s.name === streetName)
+  return legalVerbs(streetName, actor, street ? completeActions(street.actions) : [])
+}
+
+/** Legal verbs for a hypothetical actor at an existing action slot (used by the edit overlay when actor changes). */
+export function legalVerbsForActorAtSlot(
+  state: HandState,
+  streetName: StreetName,
+  index: number,
+  actor: Position,
+): VerbOptions {
+  const street = state.streets.find((s) => s.name === streetName)
+  const prior = street ? completeActions(street.actions.slice(0, index)) : []
+  return legalVerbs(streetName, actor, prior)
+}
+
 // ---------------------------------------------------------------------------
 // Immutable update helpers
 // ---------------------------------------------------------------------------
@@ -761,6 +779,50 @@ export function setVerb(
       acts.map((a, i) => {
         if (i !== index) return a
         const next: Action = { id: a.id, actor: a.actor, verb }
+        if (amount !== undefined) next.amount = amount
+        return next
+      }),
+    ),
+  )
+}
+
+/** Atomically add a complete action (actor + verb) to the named street. */
+export function addAction(
+  state: HandState,
+  streetName: StreetName,
+  actor: Position,
+  verb: Verb,
+  amount?: number,
+): HandState {
+  const withBegun = beginAction(state, streetName, actor)
+  const street = withBegun.streets.find((s) => s.name === streetName)!
+  const index = street.actions.length - 1
+  return setVerb(withBegun, streetName, index, verb, amount)
+}
+
+/**
+ * Atomically update both actor and verb on an existing action at (streetName, index).
+ * Rejects a verb that is not legal for the actor at that slot (closing the old
+ * `editActor` hole where changing the actor could silently keep an illegal verb).
+ * Like `editActor`, downstream actions are not re-validated.
+ */
+export function editAction(
+  state: HandState,
+  streetName: StreetName,
+  index: number,
+  actor: Position,
+  verb: Verb,
+  amount?: number,
+): HandState {
+  const { verbs } = legalVerbsForActorAtSlot(state, streetName, index, actor)
+  if (!verbs.includes(verb)) {
+    throw new Error(`editAction: '${verb}' is not legal for ${actor} at ${streetName}[${index}]`)
+  }
+  return replaceStreet(state, streetName, (s) =>
+    updateActions(s, (acts) =>
+      acts.map((a, i) => {
+        if (i !== index) return a
+        const next: Action = { id: a.id, actor, verb }
         if (amount !== undefined) next.amount = amount
         return next
       }),

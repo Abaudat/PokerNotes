@@ -16,6 +16,10 @@ import {
   legalVerbsForActionSlot,
   legalShowdownActorsForSlot,
   legalActorsForNewActionOnStreet,
+  legalVerbsForNewAction,
+  legalVerbsForActorAtSlot,
+  addAction,
+  editAction,
   villainPosition,
   markerFor,
   markerLabel,
@@ -720,5 +724,171 @@ describe('card ordering — showdown cards', () => {
     const vm = buildHandViewModel(s)
     expect(vm.showdown![0].cards![0]).toBe('As')
     expect(vm.showdown![0].cards![1]).toBe('2s')
+  })
+})
+
+// ===========================================================================
+// legalVerbsForNewAction
+// ===========================================================================
+
+describe('legalVerbsForNewAction', () => {
+  it('returns facing-bet verbs for a non-BB actor on an unraised preflop', () => {
+    const state = st({ streets: [street('Preflop', 'UTG c, CO c')] })
+    const { verbs, facingBet } = legalVerbsForNewAction(state, 'Preflop', 'BTN')
+    expect(facingBet).toBe(true)
+    expect(verbs).toContain('c')
+    expect(verbs).not.toContain('x')
+  })
+
+  it('returns BB option verbs when BB acts without prior raise', () => {
+    const state = st({ streets: [street('Preflop', 'UTG c, CO c, BTN c, SB c')] })
+    const { verbs, bbOption } = legalVerbsForNewAction(state, 'Preflop', 'BB')
+    expect(bbOption).toBe(true)
+    expect(verbs).toContain('x')
+    expect(verbs).not.toContain('c')
+  })
+
+  it('returns facing-bet verbs for BB when there was a raise', () => {
+    const state = st({ streets: [street('Preflop', 'UTG r 15, CO c')] })
+    const { verbs, facingBet } = legalVerbsForNewAction(state, 'Preflop', 'BB')
+    expect(facingBet).toBe(true)
+    expect(verbs).toContain('c')
+    expect(verbs).not.toContain('x')
+  })
+
+  it('returns check/bet verbs on a postflop street with no prior bet', () => {
+    const state = st({ streets: [street('Preflop', 'BTN c, BB x'), street('Flop', '')] })
+    const { verbs, facingBet } = legalVerbsForNewAction(state, 'Flop', 'BB')
+    expect(facingBet).toBe(false)
+    expect(verbs).toContain('x')
+    expect(verbs).toContain('b')
+  })
+
+  it('returns correct preflop verbs before the preflop street has been created', () => {
+    const state = st({ streets: [] })
+    const { verbs: btnVerbs, facingBet } = legalVerbsForNewAction(state, 'Preflop', 'BTN')
+    expect(facingBet).toBe(true)
+    expect(btnVerbs).toContain('c')
+    expect(btnVerbs).not.toContain('x')
+    expect(btnVerbs).not.toContain('b')
+    const { verbs: bbVerbs, bbOption } = legalVerbsForNewAction(state, 'Preflop', 'BB')
+    expect(bbOption).toBe(true)
+    expect(bbVerbs).toContain('x')
+    expect(bbVerbs).not.toContain('c')
+    expect(bbVerbs).not.toContain('b')
+  })
+})
+
+// ===========================================================================
+// legalVerbsForActorAtSlot
+// ===========================================================================
+
+describe('legalVerbsForActorAtSlot', () => {
+  it('returns BB option verbs when BB at slot 0 preflop with no raise', () => {
+    const state = parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BB x')
+    const { verbs, bbOption } = legalVerbsForActorAtSlot(state, 'Preflop', 0, 'BB')
+    expect(bbOption).toBe(true)
+    expect(verbs).toContain('x')
+  })
+
+  it('returns facing-bet verbs when changing actor from BB to BTN at slot 0 preflop', () => {
+    const state = parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BB x')
+    const { verbs, facingBet } = legalVerbsForActorAtSlot(state, 'Preflop', 0, 'BTN')
+    expect(facingBet).toBe(true)
+    expect(verbs).toContain('c')
+    expect(verbs).not.toContain('x')
+  })
+
+  it('accounts for prior actions when computing verbs for slot 1', () => {
+    const state = parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: UTG r 15, CO c')
+    const { verbs, facingBet } = legalVerbsForActorAtSlot(state, 'Preflop', 1, 'CO')
+    expect(facingBet).toBe(true)
+    expect(verbs).toContain('c')
+    expect(verbs).not.toContain('x')
+  })
+})
+
+// ===========================================================================
+// addAction
+// ===========================================================================
+
+describe('addAction', () => {
+  it('atomically adds actor + verb in a single call with no trailing verbless action', () => {
+    const state = st({ streets: [{ name: 'Preflop', actions: [] }] })
+    const next = addAction(state, 'Preflop', 'UTG', 'r', 15)
+    const actions = next.streets.find((s) => s.name === 'Preflop')!.actions
+    expect(actions).toHaveLength(1)
+    expect(actions[0].actor).toBe('UTG')
+    expect(actions[0].verb).toBe('r')
+    expect(actions[0].amount).toBe(15)
+  })
+
+  it('does not leave any verbless trailing actions', () => {
+    const state = st({ streets: [{ name: 'Preflop', actions: [] }] })
+    const next = addAction(state, 'Preflop', 'BTN', 'f')
+    const actions = next.streets.find((s) => s.name === 'Preflop')!.actions
+    expect(actions.every((a) => a.verb !== undefined)).toBe(true)
+  })
+
+  it('appends to existing actions on the street', () => {
+    const state = st({ streets: [street('Preflop', 'UTG r 15')] })
+    const next = addAction(state, 'Preflop', 'CO', 'c')
+    const actions = next.streets.find((s) => s.name === 'Preflop')!.actions
+    expect(actions).toHaveLength(2)
+    expect(actions[1].actor).toBe('CO')
+    expect(actions[1].verb).toBe('c')
+  })
+
+  it('omits amount when not provided', () => {
+    const state = st({ streets: [{ name: 'Preflop', actions: [] }] })
+    const next = addAction(state, 'Preflop', 'UTG', 'f')
+    expect(next.streets[0].actions[0].amount).toBeUndefined()
+  })
+})
+
+// ===========================================================================
+// editAction
+// ===========================================================================
+
+describe('editAction', () => {
+  it('atomically updates actor and verb on an existing action', () => {
+    const state = st({ streets: [street('Preflop', 'UTG r 15, CO c')] })
+    const next = editAction(state, 'Preflop', 0, 'HJ', 'r', 20)
+    const actions = next.streets.find((s) => s.name === 'Preflop')!.actions
+    expect(actions[0].actor).toBe('HJ')
+    expect(actions[0].verb).toBe('r')
+    expect(actions[0].amount).toBe(20)
+  })
+
+  it('preserves other actions in the street', () => {
+    const state = st({ streets: [street('Preflop', 'UTG r 15, CO c')] })
+    const next = editAction(state, 'Preflop', 0, 'HJ', 'f')
+    const actions = next.streets.find((s) => s.name === 'Preflop')!.actions
+    expect(actions[1]).toMatchObject({ actor: 'CO', verb: 'c' })
+  })
+
+  it('clears amount when not provided', () => {
+    const state = st({ streets: [street('Preflop', 'UTG r 15')] })
+    const next = editAction(state, 'Preflop', 0, 'UTG', 'f')
+    expect(next.streets[0].actions[0].amount).toBeUndefined()
+  })
+
+  it('preserves the action id', () => {
+    const state = st({ streets: [street('Preflop', 'UTG r 15')] })
+    const originalId = state.streets[0].actions[0].id
+    const next = editAction(state, 'Preflop', 0, 'CO', 'c')
+    expect(next.streets[0].actions[0].id).toBe(originalId)
+  })
+
+  it('rejects a verb that is illegal for the new actor at the slot', () => {
+    // Preflop unraised: BB has the option, so "call" is not legal for BB.
+    const state = st({ streets: [street('Preflop', 'UTG c')] })
+    expect(() => editAction(state, 'Preflop', 0, 'BB', 'c')).toThrow()
+  })
+
+  it('accepts a verb that is legal for the new actor at the slot', () => {
+    const state = st({ streets: [street('Preflop', 'UTG c')] })
+    const next = editAction(state, 'Preflop', 0, 'BB', 'x')
+    expect(next.streets[0].actions[0]).toMatchObject({ actor: 'BB', verb: 'x' })
   })
 })

@@ -100,7 +100,7 @@ test('add-action actor picker for Preflop shows BTN/SB/BB but not UTG or CO', as
   await expect(step.getByRole('button', { name: 'CO', exact: true })).not.toBeVisible()
 })
 
-test('adding a new action to Preflop appends actor and verb chips', async ({ page }) => {
+test('adding a new action to Preflop appends one merged action chip', async ({ page }) => {
   await recordPreflopUTGRaiseCOCallThenFlop(page)
   await page.getByTestId('add-action-Preflop').click()
 
@@ -108,8 +108,19 @@ test('adding a new action to Preflop appends actor and verb chips', async ({ pag
   await step.getByRole('button', { name: 'SB', exact: true }).click()
   await step.getByRole('button', { name: 'Fold', exact: true }).click()
 
-  await expect(page.locator('[data-chip-id="action:Preflop:2:actor"]')).toHaveText('SB')
-  await expect(page.locator('[data-chip-id="action:Preflop:2:verb"]')).toHaveText('Fold')
+  await expect(page.locator('[data-chip-id="action:Preflop:2"]')).toHaveText('SB folds')
+})
+
+test('cancelling the add-action panel mid-way leaves the street unchanged', async ({ page }) => {
+  await recordPreflopUTGRaiseCOCallThenFlop(page)
+  await page.getByTestId('add-action-Preflop').click()
+
+  const step = page.locator('[data-testid="step-content"]')
+  await step.getByRole('button', { name: 'SB', exact: true }).click()
+  await step.getByRole('button', { name: 'Cancel', exact: true }).click()
+
+  // No third Preflop action was created (the old flow left a verbless trailing action).
+  await expect(page.locator('[data-chip-id="action:Preflop:2"]')).not.toBeVisible()
 })
 
 // ===========================================================================
@@ -128,8 +139,9 @@ test('no + button on Flop when all actors have responded to the bet', async ({ p
 test('+ button appears on Flop after editing an actor to create an implicit fold', async ({ page }) => {
   await recordUpToTurnWithFullFlopAction(page)
 
-  // Edit Flop action 1: CO call → UTG call (CO is now implicitly folded)
-  await page.locator('[data-chip-id="action:Flop:1:actor"]').click()
+  // Edit Flop action 1: CO call → UTG call (CO is now implicitly folded).
+  // Call is still legal for UTG, so the position-only edit applies in one tap.
+  await page.locator('[data-chip-id="action:Flop:1"]').click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'UTG', exact: true }).click()
 
   await expect(page.getByTestId('add-action-Flop')).toBeVisible()
@@ -139,7 +151,7 @@ test('CO can be added to Flop and recorded as a fold after editing Flop actor to
   await recordUpToTurnWithFullFlopAction(page)
 
   // Edit Flop action 1: CO → UTG
-  await page.locator('[data-chip-id="action:Flop:1:actor"]').click()
+  await page.locator('[data-chip-id="action:Flop:1"]').click()
   await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'UTG', exact: true }).click()
 
   // Add CO's action via the + button
@@ -149,6 +161,5 @@ test('CO can be added to Flop and recorded as a fold after editing Flop actor to
   await step.getByRole('button', { name: 'CO', exact: true }).click()
   await step.getByRole('button', { name: 'Fold', exact: true }).click()
 
-  await expect(page.locator('[data-chip-id="action:Flop:2:actor"]')).toHaveText('CO')
-  await expect(page.locator('[data-chip-id="action:Flop:2:verb"]')).toHaveText('Fold')
+  await expect(page.locator('[data-chip-id="action:Flop:2"]')).toHaveText('CO folds')
 })

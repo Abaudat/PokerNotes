@@ -153,6 +153,97 @@ test('after saving a hand with custom stakes, the next new hand has those custom
   await expect(page.getByRole('button', { name: 'No board' })).toBeEnabled()
 })
 
+// ── Combined position + action panel (issue #53) ─────────────────────────────
+
+/** Records stakes + no board + hero BTN A♥ K♠, ending on the Preflop combined panel. */
+async function recordUpToPreflopPanel(page: import('@playwright/test').Page) {
+  await page.getByRole('button', { name: '1/2' }).click()
+  await page.getByRole('button', { name: 'No board' }).click()
+  await page.getByRole('button', { name: 'BTN' }).click()
+  await page.getByRole('button', { name: 'A♥' }).click()
+  await page.getByRole('button', { name: 'K♠' }).click()
+  await page.getByRole('button', { name: /Done/ }).click()
+}
+
+test('position tap reveals the verb row without committing', async ({ page }) => {
+  await recordUpToPreflopPanel(page)
+  const step = page.locator('[data-testid="step-content"]')
+  await expect(step.getByText('— pick a position first —')).toBeVisible()
+
+  await step.getByRole('button', { name: 'H', exact: true }).click()
+
+  await expect(step.getByRole('button', { name: 'Call', exact: true })).toBeVisible()
+  // Nothing committed yet — no action chip exists.
+  await expect(page.locator('[data-chip-id="action:Preflop:0"]')).not.toBeVisible()
+})
+
+test('verb tap commits one merged action chip', async ({ page }) => {
+  await recordUpToPreflopPanel(page)
+  const step = page.locator('[data-testid="step-content"]')
+  await step.getByRole('button', { name: 'H', exact: true }).click()
+  await step.getByRole('button', { name: 'Call', exact: true }).click()
+
+  await expect(page.locator('[data-chip-id="action:Preflop:0"]')).toHaveText('H (BTN) calls')
+})
+
+test('switching position before the verb recomputes the verb row (BB option)', async ({ page }) => {
+  await recordUpToPreflopPanel(page)
+  const step = page.locator('[data-testid="step-content"]')
+
+  // Unraised BB has the option: Check, no Call.
+  await step.getByRole('button', { name: 'BB', exact: true }).click()
+  await expect(step.getByRole('button', { name: 'Check', exact: true })).toBeVisible()
+  await expect(step.getByRole('button', { name: 'Call', exact: true })).not.toBeVisible()
+
+  // SB faces the implicit BB bet: Call, no Check.
+  await step.getByRole('button', { name: 'SB', exact: true }).click()
+  await expect(step.getByRole('button', { name: 'Call', exact: true })).toBeVisible()
+  await expect(step.getByRole('button', { name: 'Check', exact: true })).not.toBeVisible()
+})
+
+test('backing out of the amount sub-step leaves no partial action', async ({ page }) => {
+  await recordUpToPreflopPanel(page)
+  const step = page.locator('[data-testid="step-content"]')
+  await step.getByRole('button', { name: 'H', exact: true }).click()
+  await step.getByRole('button', { name: 'Raise', exact: true }).click()
+
+  await step.getByRole('button', { name: '← Back' }).click()
+
+  // Back on the combined panel with the position still highlighted; nothing committed.
+  await expect(step.getByRole('button', { name: 'Raise', exact: true })).toBeVisible()
+  await expect(page.locator('[data-chip-id="action:Preflop:0"]')).not.toBeVisible()
+})
+
+test('undo removes a whole action in one step', async ({ page }) => {
+  await recordUpToPreflopPanel(page)
+  const step = page.locator('[data-testid="step-content"]')
+  await step.getByRole('button', { name: 'H', exact: true }).click()
+  await step.getByRole('button', { name: 'Raise', exact: true }).click()
+  await page.locator('input[type="number"]').fill('20')
+  await page.getByRole('button', { name: 'OK' }).click()
+  await expect(page.locator('[data-chip-id="action:Preflop:0"]')).toHaveText('H (BTN) raises 20')
+
+  await page.getByRole('button', { name: '← Undo' }).click()
+
+  // The whole action is gone — no verbless actor chip left behind.
+  await expect(page.locator('[data-chip-id="action:Preflop:0"]')).not.toBeVisible()
+  await expect(step.getByText('— pick a position first —')).toBeVisible()
+})
+
+test('undo during the amount sub-step discards the pending action', async ({ page }) => {
+  await recordUpToPreflopPanel(page)
+  const step = page.locator('[data-testid="step-content"]')
+  await step.getByRole('button', { name: 'H', exact: true }).click()
+  await step.getByRole('button', { name: 'Raise', exact: true }).click()
+
+  await page.getByRole('button', { name: '← Undo' }).click()
+
+  // The pending action is discarded; the previously recorded steps are untouched.
+  await expect(step.getByText('— pick a position first —')).toBeVisible()
+  await expect(page.locator('[data-chip-id="hero:pos"]')).toHaveText('H (BTN)')
+  await expect(page.locator('[data-chip-id="action:Preflop:0"]')).not.toBeVisible()
+})
+
 test('new hand inherits stakes from the most recently saved hand', async ({ page }) => {
   // Record first hand with 2/5
   await page.getByRole('button', { name: '2/5' }).click()

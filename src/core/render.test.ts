@@ -137,16 +137,37 @@ describe('buildEditorView — chip ids and text', () => {
     expect(chipById(raw, 'hero:card:1')?.text).toBe('K♠')
   })
 
-  it('action chips carry the marked actor and verb (with amount)', () => {
-    expect(chipById(raw, 'action:Preflop:0:actor')?.text).toBe('H (BTN)')
-    expect(chipById(raw, 'action:Preflop:0:verb')?.text).toBe('Raise 15')
-    expect(chipById(raw, 'action:Preflop:1:actor')?.text).toBe('V (BB)')
-    expect(chipById(raw, 'action:Preflop:1:verb')?.text).toBe('Call')
+  it('action chips carry the merged actor + verb text', () => {
+    expect(chipById(raw, 'action:Preflop:0')?.text).toBe('H (BTN) raises 15')
+    expect(chipById(raw, 'action:Preflop:1')?.text).toBe('V (BB) calls')
   })
 
-  it('all-in verb chips render with and without amount', () => {
-    expect(chipById('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN all in 200', 'action:Preflop:0:verb')?.text).toBe('All In 200')
-    expect(chipById('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN all in, BB c', 'action:Preflop:0:verb')?.text).toBe('All In')
+  it('action chip meta carries the two-tone parts for the UI', () => {
+    expect(chipById(raw, 'action:Preflop:0')?.meta).toMatchObject({
+      actor: 'BTN',
+      marker: 'H',
+      verb: 'r',
+      amount: 15,
+      actorLabel: 'H (BTN)',
+      verbText: 'raises 15',
+    })
+    expect(chipById(raw, 'action:Preflop:1')?.meta).toMatchObject({
+      actor: 'BB',
+      marker: 'V',
+      verb: 'c',
+      actorLabel: 'V (BB)',
+      verbText: 'calls',
+    })
+  })
+
+  it('action chip id scheme uses action:street:index (no :actor/:verb suffix)', () => {
+    expect(chipById(raw, 'action:Preflop:0:actor')).toBeUndefined()
+    expect(chipById(raw, 'action:Preflop:0:verb')).toBeUndefined()
+  })
+
+  it('all-in chips render with and without amount', () => {
+    expect(chipById('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN all in 200', 'action:Preflop:0')?.text).toBe('H (BTN) all in 200')
+    expect(chipById('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN all in, BB c', 'action:Preflop:0')?.text).toBe('H (BTN) all in')
   })
 
   it('showdown chips are positional', () => {
