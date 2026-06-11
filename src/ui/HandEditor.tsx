@@ -37,10 +37,10 @@ import {
   editShowdownCard,
 } from '../core/engine'
 import { buildEditorView, POSITION_COLORS, HERO_COLOR, VILLAIN_COLOR } from '../core/render'
+import { CardGlyph } from './cardGlyphs'
 import type { Chip } from '../core/render'
 import type { HandState, Verb, Card, ShowdownVerb, StreetName, Position } from '../core/types'
 
-const SUIT_COLORS: Record<string, string> = { s: '#94a3b8', h: '#f87171', d: '#fb923c', c: '#4ade80' }
 const VERB_LABELS: Record<Verb, string> = {
   x: 'Check', c: 'Call', r: 'Raise', f: 'Fold', b: 'Bet', a: 'All In',
 }
@@ -89,9 +89,9 @@ function CardGrid({
   const reversedRanks = [...RANKS].reverse()
 
   return (
-    <div data-testid="card-picker" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(44px, 1fr))', gap: 3, maxWidth: 260 }}>
+    <div data-testid="card-picker" className="card-grid">
       {SUITS.map((suit) => (
-        <div key={suit} style={{ textAlign: 'center', color: SUIT_COLORS[suit], fontWeight: 700, fontSize: '0.9rem', paddingBottom: 2 }}>
+        <div key={suit} className={`card-grid-suit-head suit-${suit}`}>
           {SUIT_GLYPHS[suit]}
         </div>
       ))}
@@ -105,21 +105,10 @@ function CardGrid({
               key={code}
               onClick={() => { if (!isUsed) onToggle(code) }}
               disabled={isUsed}
-              style={{
-                padding: '0.25rem 0',
-                fontSize: '0.72rem',
-                lineHeight: 1.2,
-                background: active ? 'var(--accent)' : 'var(--surface2)',
-                color: active ? '#000' : 'var(--text)',
-                border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-                borderRadius: 4,
-                opacity: isUsed ? 0.2 : 1,
-                cursor: isUsed ? 'default' : 'pointer',
-                fontWeight: active ? 700 : 400,
-              }}
+              className={active ? 'selected' : undefined}
             >
-              <span style={{ color: active ? '#000' : 'var(--text)' }}>{rank}</span>
-              <span style={{ color: active ? '#000' : SUIT_COLORS[suit] }}>{SUIT_GLYPHS[suit]}</span>
+              <span>{rank}</span>
+              <span className={`suit-${suit}`}>{SUIT_GLYPHS[suit]}</span>
             </button>
           )
         })
@@ -130,10 +119,10 @@ function CardGrid({
 
 // ── Poker chip components ────────────────────────────────────────────────────
 const CHIP_COLORS: Record<number, { fill: string; text: string }> = {
-  1:   { fill: '#94a3b8', text: '#0f172a' },
-  5:   { fill: '#ef4444', text: '#fff'    },
-  25:  { fill: '#22c55e', text: '#fff'    },
-  100: { fill: '#1e293b', text: '#e2e8f0' },
+  1:   { fill: '#aeb6c2', text: '#1a1d23' },
+  5:   { fill: '#b8473f', text: '#fff'    },
+  25:  { fill: '#2e7d52', text: '#fff'    },
+  100: { fill: '#23272e', text: '#e8c87e' },
 }
 const CHIP_DENOMS = [1, 5, 25, 100] as const
 
@@ -179,8 +168,8 @@ function ChipAmountInput({
           </button>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        <span style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>$</span>
+      <div className="row">
+        <span className="muted" style={{ fontSize: '1.1rem' }}>$</span>
         <input
           type="number"
           min={1}
@@ -188,17 +177,7 @@ function ChipAmountInput({
           onChange={(e) => onAmountChange(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && isValid) onSubmit(amount) }}
           placeholder="0"
-          style={{
-            width: 80,
-            background: 'var(--surface)',
-            color: 'var(--text)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '0.5rem 0.75rem',
-            fontSize: '0.875rem',
-            outline: 'none',
-            fontFamily: 'inherit',
-          }}
+          className="input-amount"
         />
         <button className="btn-primary" disabled={!isValid} onClick={() => isValid && onSubmit(amount)}>OK</button>
         {onSkip && <button className="btn-secondary" onClick={onSkip}>Skip</button>}
@@ -302,49 +281,33 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
   const chipLines = buildEditorView(state)
 
   // ── Chip styling ────────────────────────────────────────────────────────────
-  function chipStyle(chip: Chip): React.CSSProperties {
-    const base: React.CSSProperties = {
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: '0.2rem 0.55rem',
-      borderRadius: 6,
-      fontSize: '0.85rem',
-      fontWeight: 500,
-      cursor: chip.editKind ? 'pointer' : 'default',
-      border: '1px solid var(--border)',
-      background: 'var(--surface2)',
-      color: 'var(--text)',
-      fontFamily: 'inherit',
-      lineHeight: 1.3,
-    }
-    if (chip.kind === 'stakes') {
-      return { ...base, color: 'var(--text-muted)', fontSize: '0.8rem' }
-    }
-    if (chip.kind === 'board-card' || chip.kind === 'hero-card' || chip.kind === 'showdown-card') {
-      const suitCode = chip.meta?.cardCode?.[1]
-      return { ...base, color: suitCode ? SUIT_COLORS[suitCode] : 'var(--text)', fontWeight: chip.kind === 'hero-card' ? 600 : 500 }
-    }
-    if (chip.kind === 'board-card-add') {
-      return { ...base, border: '1px dashed var(--border)', background: 'transparent', color: 'var(--text-muted)', fontWeight: 700 }
-    }
-    if (chip.kind === 'hero-pos') {
-      return { ...base, background: HERO_COLOR, color: '#000', border: 'none', fontWeight: 700 }
-    }
+  function chipClass(chip: Chip): string {
+    if (chip.kind === 'stakes') return 'chip chip-stakes'
+    if (chip.kind === 'board-card-add') return 'chip chip-add'
+    if (chip.kind === 'hero-pos') return 'chip chip-hero-pos'
+    if (chip.kind === 'action-verb' || chip.kind === 'showdown-verb') return 'chip chip-muted'
+    if (chip.kind === 'note') return 'chip chip-note'
+    if (chip.kind === 'label') return 'chip chip-label'
+    return 'chip'
+  }
+
+  function chipStyle(chip: Chip): React.CSSProperties | undefined {
     if (chip.kind === 'action-actor' || chip.kind === 'showdown-actor') {
       const marker = chip.meta?.marker
       const color = marker === 'H' ? HERO_COLOR : marker === 'V' ? VILLAIN_COLOR : actorColor(chip.meta?.actor ?? '')
-      return { ...base, color, fontWeight: marker === 'H' ? 700 : marker === 'V' ? 600 : 500 }
+      return { color, fontWeight: marker === 'H' ? 700 : 600 }
     }
-    if (chip.kind === 'action-verb' || chip.kind === 'showdown-verb') {
-      return { ...base, color: 'var(--text-muted)' }
+    return undefined
+  }
+
+  function chipContent(chip: Chip): ReactNode {
+    if (
+      (chip.kind === 'board-card' || chip.kind === 'hero-card' || chip.kind === 'showdown-card') &&
+      chip.meta?.cardCode
+    ) {
+      return <CardGlyph code={chip.meta.cardCode} />
     }
-    if (chip.kind === 'note') {
-      return { ...base, color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.78rem' }
-    }
-    if (chip.kind === 'label') {
-      return { ...base, background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'default', padding: '0.2rem 0' }
-    }
-    return base
+    return chip.text
   }
 
   function sectionHeader(key: string): string | null {
@@ -357,26 +320,32 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
   }
 
   const headerStyle: React.CSSProperties = {
-    fontSize: '0.7rem',
-    color: 'var(--text-muted)',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.08em',
     minWidth: 56,
     flexShrink: 0,
   }
 
   const recordedDisplay = chipLines.length > 0 ? (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+    <div className="stack-sm">
       {chipLines.map((line) => (
-        <div key={line.key} style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          {sectionHeader(line.key) && <span style={headerStyle}>{sectionHeader(line.key)}</span>}
+        <div key={line.key} className="row-wrap" style={{ gap: '0.35rem' }}>
+          {sectionHeader(line.key) && (
+            <span className="section-label" style={headerStyle}>{sectionHeader(line.key)}</span>
+          )}
           {line.chips.map((chip) =>
             chip.editKind ? (
-              <button key={chip.id} data-chip-id={chip.id} onClick={() => openEdit(chip)} style={chipStyle(chip)}>
-                {chip.text}
+              <button
+                key={chip.id}
+                data-chip-id={chip.id}
+                onClick={() => openEdit(chip)}
+                className={chipClass(chip)}
+                style={chipStyle(chip)}
+              >
+                {chipContent(chip)}
               </button>
             ) : (
-              <span key={chip.id} style={chipStyle(chip)}>{chip.text}</span>
+              <span key={chip.id} className={chipClass(chip)} style={chipStyle(chip)}>
+                {chipContent(chip)}
+              </span>
             ),
           )}
         </div>
@@ -397,9 +366,9 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     const chip = activeEdit
     const editHeaderLabel = chip.editKind === 'board-card-add' ? 'Add board card' : `Editing: ${chip.text}`
     const editHeader = (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+      <div className="row-between" style={{ marginBottom: '0.5rem' }}>
         <StepLabel>{editHeaderLabel}</StepLabel>
-        <button className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }} onClick={cancelEdit} data-testid="cancel-edit">Cancel edit</button>
+        <button className="btn-ghost" onClick={cancelEdit} data-testid="cancel-edit">Cancel edit</button>
       </div>
     )
 
@@ -480,14 +449,14 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
       const isValid = amountInput.trim().length > 0
       editContent = (
         <div>{editHeader}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div className="row">
             <input
               value={amountInput}
               onChange={(e) => setAmountInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && isValid) apply(editNote(state, chip.noteId!, amountInput.trim())) }}
               autoFocus
               placeholder="note…"
-              style={inputStyle}
+              className="input-flex"
             />
             <button className="btn-primary" disabled={!isValid} onClick={() => apply(editNote(state, chip.noteId!, amountInput.trim()))}>OK</button>
           </div>
@@ -520,8 +489,8 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     stepLabel = `Board cards${pendingCards.length > 0 ? ` — ${pendingCards.length} selected` : ''}`
     stepContent = (
       <>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.5rem' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Stakes</span>
+        <div className="row-wrap" style={{ marginBottom: '0.5rem' }}>
+          <span className="section-label">Stakes</span>
           <StakesSelector value={selectedStakes} onChange={setSelectedStakes} />
         </div>
         <CardGrid
@@ -535,7 +504,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
             })
           }
         />
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
+        <div className="row" style={{ marginTop: '0.6rem' }}>
           {pendingCards.length === 0 && (
             <button className="btn-secondary" disabled={!selectedStakes} onClick={() => commitBoard([])}>No board</button>
           )}
@@ -545,7 +514,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
             </button>
           )}
           {pendingCards.length > 0 && pendingCards.length < 3 && (
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>need {3 - pendingCards.length} more</span>
+            <span className="muted" style={{ fontSize: '0.8rem' }}>need {3 - pendingCards.length} more</span>
           )}
         </div>
       </>
@@ -590,7 +559,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
           <button key={actor} className="btn-secondary" onClick={() => apply(beginAction(state, currentStreet, actor))}>{suggestionLabel(state, actor, currentStreet !== 'Preflop')}</button>
         ))}</ButtonRow>
         {(step.canAdvance || step.canShowdown || step.canSave) && (
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+          <div className="row-wrap" style={{ marginTop: '0.6rem' }}>
             {step.canAdvance && next && (
               <button className="btn-secondary" onClick={() => apply(advanceToStreet(state, next))}>→ {next}</button>
             )}
@@ -662,9 +631,9 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
 
   // ── Header ───────────────────────────────────────────────────────────────────
   const header = (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <h2 style={{ fontSize: '1rem', fontWeight: 600 }}>{initialRaw !== undefined ? 'Edit hand' : 'New hand'}</h2>
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
+    <div className="row-between">
+      <h2>{initialRaw !== undefined ? 'Edit hand' : 'New hand'}</h2>
+      <div className="row">
         {history.length > 0 && <button className="btn-secondary" onClick={undo}>← Undo</button>}
         <button className="btn-secondary" onClick={onCancel}>Cancel</button>
       </div>
@@ -673,12 +642,12 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
 
   // ── Free-text note ────────────────────────────────────────────────────────────
   const freeSection = (
-    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+    <div className="divider-top">
       {!showFree ? (
-        <button className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }} onClick={() => setShowFree(true)}>··· type manually</button>
+        <button className="btn-ghost" onClick={() => setShowFree(true)}>··· type manually</button>
       ) : (
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <input value={freeInput} onChange={(e) => setFreeInput(e.target.value)} autoFocus placeholder="note to add…" style={inputStyle} />
+        <div className="row">
+          <input value={freeInput} onChange={(e) => setFreeInput(e.target.value)} autoFocus placeholder="note to add…" className="input-flex" />
           <button className="btn-primary" onClick={() => commitNote(freeInput)}>Add note</button>
           <button className="btn-secondary" onClick={() => { setShowFree(false); setFreeInput('') }}>Cancel</button>
         </div>
@@ -687,10 +656,10 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <div className="stack">
       {header}
       {recordedDisplay}
-      <div data-testid="step-content">
+      <div data-testid="step-content" className="panel" style={{ padding: '1rem 1.1rem' }}>
         {editContent ? (
           editContent
         ) : (
@@ -703,18 +672,6 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
       {freeSection}
     </div>
   )
-}
-
-const inputStyle: React.CSSProperties = {
-  flex: 1,
-  background: 'var(--surface)',
-  color: 'var(--text)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius)',
-  padding: '0.5rem 0.75rem',
-  fontSize: '0.875rem',
-  outline: 'none',
-  fontFamily: 'inherit',
 }
 
 function StakesSelector({ value, onChange }: { value: string | null; onChange: (s: string) => void }) {
@@ -745,25 +702,12 @@ function StakesSelector({ value, onChange }: { value: string | null; onChange: (
     setBbInput('')
   }
 
-  const smallInputStyle: React.CSSProperties = {
-    width: 56,
-    background: 'var(--surface)',
-    color: 'var(--text)',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)',
-    padding: '0.25rem 0.4rem',
-    fontSize: '0.85rem',
-    outline: 'none',
-    fontFamily: 'inherit',
-  }
-
   return (
-    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+    <div className="row-wrap" style={{ gap: '0.4rem' }}>
       {STAKES_PRESETS.map((s) => (
         <button
           key={s}
-          className={value === s ? 'btn-primary' : 'btn-secondary'}
-          style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
+          className={`${value === s ? 'btn-primary' : 'btn-secondary'} btn-small`}
           onClick={() => { onChange(s); setShowCustom(false) }}
         >
           {s}
@@ -771,8 +715,7 @@ function StakesSelector({ value, onChange }: { value: string | null; onChange: (
       ))}
       {!showCustom ? (
         <button
-          className={isCustomSelected ? 'btn-primary' : 'btn-secondary'}
-          style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem' }}
+          className={`${isCustomSelected ? 'btn-primary' : 'btn-secondary'} btn-small`}
           onClick={openCustom}
         >
           {isCustomSelected ? value : 'Custom...'}
@@ -787,9 +730,9 @@ function StakesSelector({ value, onChange }: { value: string | null; onChange: (
             onChange={(e) => setSbInput(e.target.value)}
             placeholder="SB"
             autoFocus
-            style={smallInputStyle}
+            className="input-stakes"
           />
-          <span style={{ color: 'var(--text-muted)' }}>/</span>
+          <span className="muted">/</span>
           <input
             data-testid="custom-stakes-bb"
             type="number"
@@ -798,10 +741,10 @@ function StakesSelector({ value, onChange }: { value: string | null; onChange: (
             onChange={(e) => setBbInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && isValidCustom) confirmCustom() }}
             placeholder="BB"
-            style={smallInputStyle}
+            className="input-stakes"
           />
-          <button className="btn-primary" disabled={!isValidCustom} onClick={confirmCustom}>Set</button>
-          <button className="btn-secondary" onClick={() => setShowCustom(false)}>Cancel</button>
+          <button className="btn-primary btn-small" disabled={!isValidCustom} onClick={confirmCustom}>Set</button>
+          <button className="btn-secondary btn-small" onClick={() => setShowCustom(false)}>Cancel</button>
         </>
       )}
     </div>
@@ -809,12 +752,12 @@ function StakesSelector({ value, onChange }: { value: string | null; onChange: (
 }
 
 function ButtonRow({ children }: { children: ReactNode }) {
-  return <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>{children}</div>
+  return <div className="row-wrap">{children}</div>
 }
 
 function StepLabel({ children }: { children: ReactNode }) {
   return (
-    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+    <div className="section-label" style={{ marginBottom: '0.55rem' }}>
       {children}
     </div>
   )
