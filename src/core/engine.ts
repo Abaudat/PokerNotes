@@ -1,3 +1,4 @@
+import { sortCards } from './cards'
 import type {
   HandState,
   Action,
@@ -726,7 +727,7 @@ export function setHeroPosition(state: HandState, position: Position): HandState
 export function setHeroCards(state: HandState, cards: [Card, Card]): HandState {
   const position = state.hero?.position
   if (position === undefined) return state
-  return { ...state, hero: { position, cards } }
+  return { ...state, hero: { position, cards: sortCards(cards) } }
 }
 
 /** Ensure a Preflop street exists, returning the possibly-updated state. */
@@ -792,7 +793,7 @@ export function setShowdownCards(state: HandState, index: number, cards: [Card, 
   const entries = state.showdown ?? []
   return {
     ...state,
-    showdown: entries.map((e, i) => (i === index ? { ...e, verb: 'shows', cards } : e)),
+    showdown: entries.map((e, i) => (i === index ? { ...e, verb: 'shows', cards: sortCards(cards) } : e)),
   }
 }
 
@@ -841,7 +842,7 @@ export function editHeroPosition(state: HandState, position: Position): HandStat
 export function editHeroCard(state: HandState, index: number, card: Card): HandState {
   if (!state.hero?.cards) return state
   const cards = state.hero.cards.map((c, i) => (i === index ? card : c)) as [Card, Card]
-  return { ...state, hero: { ...state.hero, cards } }
+  return { ...state, hero: { ...state.hero, cards: sortCards(cards) } }
 }
 
 // ---------------------------------------------------------------------------
@@ -878,7 +879,7 @@ export function editShowdownCard(state: HandState, index: number, cardIndex: num
     showdown: entries.map((e, i) => {
       if (i !== index || !e.cards) return e
       const cards = e.cards.map((c, j) => (j === cardIndex ? card : c)) as [Card, Card]
-      return { ...e, cards }
+      return { ...e, cards: sortCards(cards) }
     }),
   }
 }

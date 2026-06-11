@@ -179,7 +179,9 @@ test('edit hero card 0 — swap A♥ for T♦', async ({ page }) => {
   await expect(picker.getByRole('button', { name: 'A♥', exact: true })).toBeEnabled()
   await picker.getByRole('button', { name: 'T♦', exact: true }).click()
 
-  await expect(page.locator('[data-chip-id="hero:card:0"]')).toHaveText('T♦')
+  // T < K, so after sorting K♥ moves to slot 0 and T♦ to slot 1
+  await expect(page.locator('[data-chip-id="hero:card:0"]')).toHaveText('K♥')
+  await expect(page.locator('[data-chip-id="hero:card:1"]')).toHaveText('T♦')
 })
 
 test('edit hero card 1 — swap K♥ for J♣', async ({ page }) => {
@@ -208,7 +210,8 @@ test('edit hero card — undo reverts', async ({ page }) => {
 
   await page.locator('[data-chip-id="hero:card:0"]').click()
   await page.getByRole('button', { name: 'T♦', exact: true }).click()
-  await expect(page.locator('[data-chip-id="hero:card:0"]')).toHaveText('T♦')
+  // T < K so K♥ is now at slot 0
+  await expect(page.locator('[data-chip-id="hero:card:0"]')).toHaveText('K♥')
 
   await page.getByRole('button', { name: '← Undo' }).click()
   await expect(page.locator('[data-chip-id="hero:card:0"]')).toHaveText('A♥')
@@ -428,15 +431,17 @@ test('edit showdown card 0 — swap to different card', async ({ page }) => {
   await page.locator('[data-testid="card-picker"]').getByRole('button', { name: '3♣', exact: true }).click()
   await page.getByRole('button', { name: /Done/ }).click()
 
+  // [2♣, 3♣] is stored sorted as [3♣, 2♣]; card:0 is 3♣
   await page.locator('[data-chip-id="showdown:0:card:0"]').click()
 
   const picker = page.locator('[data-testid="card-picker"]')
-  // 2♣ is selectable (the card being edited), 3♣ is disabled (sibling)
-  await expect(picker.getByRole('button', { name: '2♣', exact: true })).toBeEnabled()
-  await expect(picker.getByRole('button', { name: '3♣', exact: true })).toBeDisabled()
+  // 3♣ is selectable (the card being edited), 2♣ is disabled (sibling)
+  await expect(picker.getByRole('button', { name: '3♣', exact: true })).toBeEnabled()
+  await expect(picker.getByRole('button', { name: '2♣', exact: true })).toBeDisabled()
 
   await picker.getByRole('button', { name: '4♣', exact: true }).click()
 
+  // 4♣ > 2♣ so 4♣ stays at slot 0
   await expect(page.locator('[data-chip-id="showdown:0:card:0"]')).toHaveText('4♣')
 })
 
@@ -449,10 +454,39 @@ test('edit showdown card 1 — swap', async ({ page }) => {
   await page.locator('[data-testid="card-picker"]').getByRole('button', { name: '3♣', exact: true }).click()
   await page.getByRole('button', { name: /Done/ }).click()
 
+  // [2♣, 3♣] stored sorted as [3♣, 2♣]; card:1 is 2♣
   await page.locator('[data-chip-id="showdown:0:card:1"]').click()
   await page.locator('[data-testid="card-picker"]').getByRole('button', { name: '5♣', exact: true }).click()
 
-  await expect(page.locator('[data-chip-id="showdown:0:card:1"]')).toHaveText('5♣')
+  // 5♣ > 3♣ so 5♣ moves to slot 0, 3♣ to slot 1
+  await expect(page.locator('[data-chip-id="showdown:0:card:0"]')).toHaveText('5♣')
+  await expect(page.locator('[data-chip-id="showdown:0:card:1"]')).toHaveText('3♣')
+})
+
+// ── Card ordering — highest rank displayed first ──────────────────────────────
+
+test('card ordering — hero cards entered low-high are displayed high-low', async ({ page }) => {
+  // Enter K♥ before A♥ (lower rank first)
+  await recordUpToPreflop(page, { holeCards: ['K♥', 'A♥'] })
+
+  // A > K so A♥ should be at slot 0 regardless of entry order
+  await expect(page.locator('[data-chip-id="hero:card:0"]')).toHaveText('A♥')
+  await expect(page.locator('[data-chip-id="hero:card:1"]')).toHaveText('K♥')
+})
+
+test('card ordering — showdown cards entered low-high are displayed high-low', async ({ page }) => {
+  await recordMinimalComplete(page)
+  await page.getByRole('button', { name: '→ Showdown' }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'V', exact: true }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Shows' }).click()
+  // Enter 2♣ before 9♦ (lower rank first)
+  await page.locator('[data-testid="card-picker"]').getByRole('button', { name: '2♣', exact: true }).click()
+  await page.locator('[data-testid="card-picker"]').getByRole('button', { name: '9♦', exact: true }).click()
+  await page.getByRole('button', { name: /Done/ }).click()
+
+  // 9 > 2 so 9♦ should be at slot 0 regardless of entry order
+  await expect(page.locator('[data-chip-id="showdown:0:card:0"]')).toHaveText('9♦')
+  await expect(page.locator('[data-chip-id="showdown:0:card:1"]')).toHaveText('2♣')
 })
 
 // ── Save after edits ──────────────────────────────────────────────────────────

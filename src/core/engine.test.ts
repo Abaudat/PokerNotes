@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { parseCard } from './cards'
 import { parseHand } from './parser'
+import { serializeHand } from './serializer'
+import { buildHandViewModel, buildEditorView } from './render'
 import {
   nextStep,
   legalActorsToAct,
@@ -17,6 +19,13 @@ import {
   villainPosition,
   markerFor,
   markerLabel,
+  setHeroCards,
+  editHeroCard,
+  setShowdownCards,
+  editShowdownCard,
+  beginShowdown,
+  beginShowdownActor,
+  setShowdownVerb,
 } from './engine'
 import type { Action, Card, HandState, Position, Street, StreetName, Verb } from './types'
 
@@ -607,5 +616,109 @@ describe('legalActorsForNewActionOnStreet', () => {
   it('returns empty for an unknown street', () => {
     const state = st({ streets: [street('Preflop', 'BTN c, BB x')] })
     expect(legalActorsForNewActionOnStreet(state, 'Flop')).toEqual([])
+  })
+})
+
+// ===========================================================================
+// Card ordering — highest rank displayed first (e2e)
+// ===========================================================================
+
+describe('card ordering — hero hand', () => {
+  it('setHeroCards stores higher rank first when lower rank is given first', () => {
+    const base = st({ hero: { position: 'BTN' } })
+    const result = setHeroCards(base, [C('Kh'), C('Ad')])
+    expect(result.hero!.cards![0]).toEqual(C('Ad'))
+    expect(result.hero!.cards![1]).toEqual(C('Kh'))
+  })
+
+  it('setHeroCards preserves order when already highest rank first', () => {
+    const base = st({ hero: { position: 'BTN' } })
+    const result = setHeroCards(base, [C('Ad'), C('Kh')])
+    expect(result.hero!.cards![0]).toEqual(C('Ad'))
+    expect(result.hero!.cards![1]).toEqual(C('Kh'))
+  })
+
+  it('editHeroCard re-sorts so the new highest rank is first', () => {
+    // State has QdTh; user edits slot 1 (Th) to As → should become AsQd
+    const base = st({ hero: { position: 'BTN', cards: [C('Qd'), C('Th')] } })
+    const result = editHeroCard(base, 1, C('As'))
+    expect(result.hero!.cards![0]).toEqual(C('As'))
+    expect(result.hero!.cards![1]).toEqual(C('Qd'))
+  })
+
+  it('editHeroCard re-sorts when editing slot 0 produces a lower-rank card', () => {
+    // State has AsQd; user edits slot 0 (As) to 2c → should become Qd2c
+    const base = st({ hero: { position: 'BTN', cards: [C('As'), C('Qd')] } })
+    const result = editHeroCard(base, 0, C('2c'))
+    expect(result.hero!.cards![0]).toEqual(C('Qd'))
+    expect(result.hero!.cards![1]).toEqual(C('2c'))
+  })
+
+  it('hero cards appear in highest-rank-first order in the serialized hand', () => {
+    const base = st({ hero: { position: 'BTN' } })
+    const withCards = setHeroCards(base, [C('Kh'), C('Ad')])
+    const serialized = serializeHand(withCards)
+    expect(serialized).toContain('Hero: BTN AdKh')
+  })
+
+  it('hero cards appear in highest-rank-first order in the editor view chip text', () => {
+    const base = st({ hero: { position: 'BTN' } })
+    const withCards = setHeroCards(base, [C('Kh'), C('Ad')])
+    const chips = buildEditorView(withCards).flatMap((l) => l.chips)
+    const heroCardChips = chips.filter((c) => c.kind === 'hero-card').map((c) => c.text)
+    expect(heroCardChips[0]).toContain('A')
+    expect(heroCardChips[1]).toContain('K')
+  })
+
+  it('hero cards appear in highest-rank-first order in the hand view model', () => {
+    const base = st({ hero: { position: 'BTN' } })
+    const withCards = setHeroCards(base, [C('Kh'), C('Ad')])
+    const vm = buildHandViewModel(withCards)
+    expect(vm.hero.cards[0]).toBe('Ad')
+    expect(vm.hero.cards[1]).toBe('Kh')
+  })
+})
+
+describe('card ordering — showdown cards', () => {
+  function stateWithShowdown(): HandState {
+    let s = st()
+    s = { ...s, streets: [street('Preflop', 'BTN r 15, BB c')] }
+    s = beginShowdown(s)
+    s = beginShowdownActor(s, 'BB')
+    s = setShowdownVerb(s, 0, 'shows')
+    return s
+  }
+
+  it('setShowdownCards stores higher rank first when lower rank is given first', () => {
+    const result = setShowdownCards(stateWithShowdown(), 0, [C('2s'), C('As')])
+    expect(result.showdown![0].cards![0]).toEqual(C('As'))
+    expect(result.showdown![0].cards![1]).toEqual(C('2s'))
+  })
+
+  it('setShowdownCards preserves order when already highest rank first', () => {
+    const result = setShowdownCards(stateWithShowdown(), 0, [C('As'), C('2s')])
+    expect(result.showdown![0].cards![0]).toEqual(C('As'))
+    expect(result.showdown![0].cards![1]).toEqual(C('2s'))
+  })
+
+  it('editShowdownCard re-sorts after a card edit changes which rank is higher', () => {
+    let s = setShowdownCards(stateWithShowdown(), 0, [C('Qd'), C('Th')])
+    // Edit slot 1 (Th) to As → should become AsQd
+    s = editShowdownCard(s, 0, 1, C('As'))
+    expect(s.showdown![0].cards![0]).toEqual(C('As'))
+    expect(s.showdown![0].cards![1]).toEqual(C('Qd'))
+  })
+
+  it('showdown cards appear in highest-rank-first order in the serialized hand', () => {
+    const s = setShowdownCards(stateWithShowdown(), 0, [C('2s'), C('As')])
+    const serialized = serializeHand(s)
+    expect(serialized).toContain('BB shows As2s')
+  })
+
+  it('showdown cards appear in highest-rank-first order in the hand view model', () => {
+    const s = setShowdownCards(stateWithShowdown(), 0, [C('2s'), C('As')])
+    const vm = buildHandViewModel(s)
+    expect(vm.showdown![0].cards![0]).toBe('As')
+    expect(vm.showdown![0].cards![1]).toBe('2s')
   })
 })

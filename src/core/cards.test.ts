@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   parseCard,
   formatCard,
+  sortCards,
   SUITS,
   RANKS,
   SUIT_GLYPHS,
@@ -242,5 +243,41 @@ describe('SUITS constant', () => {
     expect(SUITS).toContain('h')
     expect(SUITS).toContain('d')
     expect(SUITS).toContain('c')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// sortCards
+// ---------------------------------------------------------------------------
+
+describe('sortCards', () => {
+  it('puts higher rank first when second card has the higher rank', () => {
+    const result = sortCards([{ rank: 'K', suit: 'h' }, { rank: 'A', suit: 'd' }])
+    expect(result[0]).toEqual({ rank: 'A', suit: 'd' })
+    expect(result[1]).toEqual({ rank: 'K', suit: 'h' })
+  })
+
+  it('leaves order unchanged when first card already has the higher rank', () => {
+    const result = sortCards([{ rank: 'A', suit: 'd' }, { rank: 'K', suit: 'h' }])
+    expect(result[0]).toEqual({ rank: 'A', suit: 'd' })
+    expect(result[1]).toEqual({ rank: 'K', suit: 'h' })
+  })
+
+  it('handles the lowest-ranked pair (2-3)', () => {
+    const result = sortCards([{ rank: '2', suit: 's' }, { rank: '3', suit: 'c' }])
+    expect(result[0].rank).toBe('3')
+    expect(result[1].rank).toBe('2')
+  })
+
+  it('handles T vs J correctly', () => {
+    const result = sortCards([{ rank: 'T', suit: 'h' }, { rank: 'J', suit: 's' }])
+    expect(result[0].rank).toBe('J')
+    expect(result[1].rank).toBe('T')
+  })
+
+  it('preserves suit information after sorting', () => {
+    const result = sortCards([{ rank: 'Q', suit: 'd' }, { rank: 'A', suit: 's' }])
+    expect(result[0]).toEqual({ rank: 'A', suit: 's' })
+    expect(result[1]).toEqual({ rank: 'Q', suit: 'd' })
   })
 })
