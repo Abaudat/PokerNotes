@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npm test && npm run lint && npm run build && npm run test:e2e:full || exit 2",
+            "command": "run_check() { local label=$1; shift; local out; out=$(\"$@\" 2>&1) || { echo \"pre-push: '$label' failed\" >&2; printf '%s\\n' \"$out\" >&2; exit 2; }; }; run_check \"npm test\" npm test; run_check \"npm run lint\" npm run lint; run_check \"npm run build\" npm run build; run_check \"npm run test:e2e:full\" npm run test:e2e:full",
             "if": "Bash(git push *)",
             "shell": "bash",
             "timeout": 600,
