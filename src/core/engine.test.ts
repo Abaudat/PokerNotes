@@ -13,6 +13,7 @@ import {
   legalActorsForActionSlot,
   legalVerbsForActionSlot,
   legalShowdownActorsForSlot,
+  legalActorsForNewActionOnStreet,
   villainPosition,
   markerFor,
   markerLabel,
@@ -540,5 +541,71 @@ describe('isComplete', () => {
 
   it('false when a showdown "shows" entry has no cards', () => {
     expect(isComplete(st({ streets: [street('Preflop', 'BTN c, BB x')], showdown: [{ id: 's', actor: 'BB', verb: 'shows' }] }))).toBe(false)
+  })
+})
+
+// ===========================================================================
+// legalActorsForNewActionOnStreet
+// ===========================================================================
+
+describe('legalActorsForNewActionOnStreet', () => {
+  it('returns remaining implicit folders for preflop raise-call', () => {
+    // UTG raise 10, CO call → BTN, SB, BB can still act
+    const state = st({
+      streets: [
+        street('Preflop', 'UTG r 10, CO c'),
+        street('Flop', 'CO x'),
+      ],
+    })
+    const opts = legalActorsForNewActionOnStreet(state, 'Preflop')
+    expect(opts).toContain('BTN')
+    expect(opts).toContain('SB')
+    expect(opts).toContain('BB')
+    expect(opts).not.toContain('UTG')
+    expect(opts).not.toContain('CO')
+  })
+
+  it('returns empty when all actors have spoken on preflop', () => {
+    // UTG raise, CO call, BB call → no one left
+    const state = st({
+      streets: [
+        street('Preflop', 'UTG r 10, CO c, BB c'),
+        street('Flop', 'BB x'),
+      ],
+    })
+    expect(legalActorsForNewActionOnStreet(state, 'Preflop')).toEqual([])
+  })
+
+  it('returns empty for flop when all actors responded to the bet', () => {
+    // Preflop: UTG raise, CO call, BB call; Flop: BB bets, CO calls → UTG implicit fold, no more actors
+    const state = st({
+      streets: [
+        street('Preflop', 'UTG r 10, CO c, BB c'),
+        street('Flop', 'BB b 15, CO c'),
+        street('Turn', 'BB x'),
+      ],
+    })
+    expect(legalActorsForNewActionOnStreet(state, 'Flop')).toEqual([])
+  })
+
+  it('returns actor after editing flop actor creates an implicit fold opportunity', () => {
+    // Preflop: UTG raise, CO call, BB call; Flop: BB bets, UTG calls (CO implicitly folded)
+    // → CO can still act on Flop
+    const state = st({
+      streets: [
+        street('Preflop', 'UTG r 10, CO c, BB c'),
+        street('Flop', 'BB b 15, UTG c'),
+        street('Turn', 'BB x'),
+      ],
+    })
+    const opts = legalActorsForNewActionOnStreet(state, 'Flop')
+    expect(opts).toContain('CO')
+    expect(opts).not.toContain('BB')
+    expect(opts).not.toContain('UTG')
+  })
+
+  it('returns empty for an unknown street', () => {
+    const state = st({ streets: [street('Preflop', 'BTN c, BB x')] })
+    expect(legalActorsForNewActionOnStreet(state, 'Flop')).toEqual([])
   })
 })
