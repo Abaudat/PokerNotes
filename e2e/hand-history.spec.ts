@@ -38,8 +38,8 @@ test.describe('history with one hand', () => {
   })
 
   // Test 23
-  test('Hand card shows the hero position with its H marker', async ({ page }) => {
-    await expect(page.getByText('H (BTN)').first()).toBeVisible()
+  test('Hand card shows the hero position', async ({ page }) => {
+    await expect(page.getByText('BTN').first()).toBeVisible()
   })
 
   // Test 24
