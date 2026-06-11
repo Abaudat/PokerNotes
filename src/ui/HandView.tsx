@@ -78,7 +78,9 @@ export default function HandView({ hand, onBack, onEdit }: Props) {
         <section key={street.name}>
           <div className="street-header">
             <div className="section-label">{street.name}</div>
-            <div className="pot-label">Pot: {street.potAtStart}</div>
+            {street.name !== 'Preflop' && (
+              <div className="pot-label">Pot: {street.potAtStart}</div>
+            )}
           </div>
           <div className="stack-sm">
             {street.actions.map((action) => {

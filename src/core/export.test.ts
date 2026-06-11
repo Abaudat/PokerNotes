@@ -85,7 +85,7 @@ describe('formatForExport', () => {
   it('includes all street names', () => {
     const ast = parseHand(SAMPLE_RAW)
     const output = formatForExport(ast)
-    expect(output).toContain('Preflop (')
+    expect(output).toContain('Preflop:')
     expect(output).toContain('Flop (')
     expect(output).toContain('Turn (')
     expect(output).toContain('River (')
@@ -111,8 +111,7 @@ describe('formatForExport', () => {
     expect(lines[1]).toBe('Board: A♠ 8♥ T♦')
     expect(lines[2]).toBe('Hero (BTN): A♥ K♠')
     // Preflop: SB implicit 2, BB implicit 5, BTN raises to 15 → BB calls to 15, SB folds (leaves 2)
-    // Preflop pot = 0 (nothing contributed before Preflop)
-    expect(lines[3]).toBe('Preflop (Pot: 0): H (BTN) raises $15, V (BB) calls')
+    expect(lines[3]).toBe('Preflop: H (BTN) raises $15, V (BB) calls')
     // Pot at Flop = SB(2) + BB(15) + BTN(15) = 32
     expect(lines[4]).toBe('Flop (Pot: 32): V (BB) checks, H (BTN) bets $20, V (BB) calls')
     // Pot at Turn = 32 + BB(20) + BTN(20) = 72

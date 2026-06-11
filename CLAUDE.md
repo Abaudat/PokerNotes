@@ -58,9 +58,9 @@ npx vitest run -t "breakdown"
 
 ## Workflow rules
 
-- **Before starting any implementation:** pull from `origin/main` first — GitHub is the source of truth and prior milestones may already be merged.
+- **Before starting any implementation:** pull from `origin/main` first, and work on a new branch — GitHub is the source of truth and prior milestones may already be merged.
   ```bash
-  git pull origin main
+  git pull origin main && git checkout -b branch_name_for_feature
   ```
 - **Before pushing:** always run `npm test && npm run build && npm run test:e2e:full` and fix any failures before pushing. `test:e2e:full` starts the Firebase emulator automatically — no separate setup needed.
 - A task is only "done" when the code is submitted as a PR to GitHub (`gh pr create`).

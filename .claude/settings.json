@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm test && npm run lint && npm run build && npm run test:e2e:full || exit 2",
+            "if": "Bash(git push *)",
+            "shell": "bash",
+            "timeout": 600,
+            "statusMessage": "Running full test suite before push..."
+          }
+        ]
+      }
+    ]
+  }
+}
