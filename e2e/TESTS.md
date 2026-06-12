@@ -44,6 +44,7 @@ Setup code (seeding a hand, clearing Firestore) lives in `beforeEach` via helper
 25. Hands are listed newest-first after recording two hands
 26. Delete button removes the hand from the list
 27. Delete button does not navigate away from the history view
+49. Hands recorded today are grouped under a "Today" date header
 
 ---
 

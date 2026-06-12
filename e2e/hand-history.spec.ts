@@ -48,6 +48,11 @@ test.describe('history with one hand', () => {
     await expect(page.getByRole('button', { name: '← History' })).toBeVisible()
   })
 
+  // Test 49
+  test('Hands recorded today are grouped under a "Today" date header', async ({ page }) => {
+    await expect(page.getByText('Today', { exact: true })).toBeVisible()
+  })
+
   // Test 26
   test('Delete button removes the hand from the list', async ({ page }) => {
     await page.getByRole('button', { name: 'Delete' }).click()
