@@ -9,8 +9,9 @@ import {
   usedCards,
   nextStreetName,
   legalActorsForActionSlot,
-  legalVerbsForActionSlot,
+  legalVerbsForActorAtSlot,
   legalShowdownActorsForSlot,
+  legalVerbsForNewAction,
   villainPosition,
   HERO_POSITIONS,
   createBlank,
@@ -18,8 +19,9 @@ import {
   setBoard,
   setHeroPosition,
   setHeroCards,
-  beginAction,
   setVerb,
+  addAction,
+  editAction,
   advanceToStreet,
   beginShowdown,
   beginShowdownActor,
@@ -31,7 +33,6 @@ import {
   addBoardCard,
   editHeroPosition,
   editHeroCard,
-  editActor,
   editShowdownActor,
   editShowdownVerb,
   editShowdownCard,
@@ -191,7 +192,11 @@ interface AmountEntry {
   verb: Verb
   optional: boolean
   street: StreetName
-  index: number
+  // For recording a new action (addAction):
+  newActor?: Position
+  // For editing an existing action (editAction) or completing a trailing verbless (setVerb):
+  index?: number
+  editActor?: Position
 }
 
 export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel }: Props) {
@@ -209,6 +214,8 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
   const [activeEdit, setActiveEdit] = useState<Chip | null>(null)
   const [amountEntry, setAmountEntry] = useState<AmountEntry | null>(null)
   const [addingToStreet, setAddingToStreet] = useState<StreetName | null>(null)
+  const [pendingActor, setPendingActor] = useState<Position | null>(null)
+  const [overlayActor, setOverlayActor] = useState<Position | null>(null)
 
   // ── Core state transition: snapshot for undo, apply, reset transient UI ──────
   function apply(next: HandState) {
@@ -221,9 +228,19 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     setShowFree(false)
     setFreeInput('')
     setAddingToStreet(null)
+    setPendingActor(null)
+    setOverlayActor(null)
   }
 
   function undo() {
+    if (amountEntry) {
+      // Nothing is committed during the amount sub-step — undo discards the
+      // pending action entirely instead of reverting the previous one.
+      setAmountEntry(null)
+      setAmountInput('')
+      setPendingActor(null)
+      return
+    }
     if (history.length === 0) return
     setState(history[history.length - 1])
     setHistory((h) => h.slice(0, -1))
@@ -232,6 +249,8 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     setAmountEntry(null)
     setActiveEdit(null)
     setAddingToStreet(null)
+    setPendingActor(null)
+    setOverlayActor(null)
   }
 
   function handleSave() {
@@ -244,6 +263,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     setAmountEntry(null)
     setAmountInput(chip.editKind === 'note' ? chip.text.replace(/^#\s*/, '') : '')
     setActiveEdit(chip)
+    setOverlayActor(chip.editKind === 'action' ? (chip.meta?.actor as Position ?? null) : null)
   }
 
   function cancelEdit() {
@@ -251,10 +271,12 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     setAmountEntry(null)
     setPendingCards([])
     setAmountInput('')
+    setOverlayActor(null)
   }
 
-  // Pick a verb for the action at (street, index): branch into amount entry when needed.
-  function chooseVerb(street: StreetName, index: number, verb: Verb) {
+  // Pick a verb for the trailing verbless action at (street, index) — edge case when a hand
+  // is loaded with a verbless trailing action.
+  function chooseVerbForTrailing(street: StreetName, index: number, verb: Verb) {
     if (verb === 'r' || verb === 'b') {
       setAmountEntry({ verb, optional: false, street, index })
       setAmountInput('')
@@ -266,14 +288,52 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     }
   }
 
+  // Atomically record a new action (recording wizard combined panel).
+  function chooseVerbForNewAction(streetName: StreetName, actor: Position, verb: Verb) {
+    if (verb === 'r' || verb === 'b') {
+      setAmountEntry({ verb, optional: false, street: streetName, newActor: actor })
+      setAmountInput('')
+    } else if (verb === 'a') {
+      setAmountEntry({ verb: 'a', optional: true, street: streetName, newActor: actor })
+      setAmountInput('')
+    } else {
+      apply(addAction(state, streetName, actor, verb))
+    }
+  }
+
+  // Commit an edited action (edit overlay combined panel).
+  function chooseVerbForEdit(chip: Chip, actor: Position, verb: Verb) {
+    if (verb === 'r' || verb === 'b') {
+      setAmountEntry({ verb, optional: false, street: chip.street!, index: chip.index!, editActor: actor })
+      setAmountInput('')
+    } else if (verb === 'a') {
+      setAmountEntry({ verb: 'a', optional: true, street: chip.street!, index: chip.index!, editActor: actor })
+      setAmountInput('')
+    } else {
+      apply(editAction(state, chip.street!, chip.index!, actor, verb))
+    }
+  }
+
   function submitAmount(amount: number) {
     if (!amountEntry) return
-    apply(setVerb(state, amountEntry.street, amountEntry.index, amountEntry.verb, amount))
+    if (amountEntry.newActor !== undefined) {
+      apply(addAction(state, amountEntry.street, amountEntry.newActor, amountEntry.verb, amount))
+    } else if (amountEntry.index !== undefined && amountEntry.editActor !== undefined) {
+      apply(editAction(state, amountEntry.street, amountEntry.index, amountEntry.editActor, amountEntry.verb, amount))
+    } else if (amountEntry.index !== undefined) {
+      apply(setVerb(state, amountEntry.street, amountEntry.index, amountEntry.verb, amount))
+    }
   }
 
   function skipAmount() {
     if (!amountEntry) return
-    apply(setVerb(state, amountEntry.street, amountEntry.index, amountEntry.verb))
+    if (amountEntry.newActor !== undefined) {
+      apply(addAction(state, amountEntry.street, amountEntry.newActor, amountEntry.verb))
+    } else if (amountEntry.index !== undefined && amountEntry.editActor !== undefined) {
+      apply(editAction(state, amountEntry.street, amountEntry.index, amountEntry.editActor, amountEntry.verb))
+    } else if (amountEntry.index !== undefined) {
+      apply(setVerb(state, amountEntry.street, amountEntry.index, amountEntry.verb))
+    }
   }
 
   function commitNote(note: string) {
@@ -287,29 +347,71 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     setAmountInput('')
     setActiveEdit(null)
     setAddingToStreet(streetName)
-  }
-
-  function handleAddActionActor(streetName: StreetName, actor: Position) {
-    apply(beginAction(state, streetName, actor))
-    setAddingToStreet(streetName)
+    setPendingActor(null)
   }
 
   const step = nextStep(state)
   const chipLines = buildEditorView(state)
+
+  // ── Combined position + action panel ─────────────────────────────────────────
+  // Shared by the wizard actor step and the add-action-to-previous-street flow.
+  // Tapping a position only highlights it (and reveals its legal verbs);
+  // tapping a verb commits the whole action atomically.
+  function combinedActionPanel(streetName: StreetName, options: Position[]) {
+    const verbOpts = pendingActor ? legalVerbsForNewAction(state, streetName, pendingActor) : null
+    return (
+      <>
+        <div style={{ marginBottom: '0.5rem' }}>
+          <RowLabel>Position</RowLabel>
+          <ButtonRow>
+            {options.map((actor) => (
+              <button
+                key={actor}
+                className={pendingActor === actor ? 'btn-primary' : 'btn-secondary'}
+                onClick={() => setPendingActor(actor === pendingActor ? null : actor)}
+              >
+                {suggestionLabel(state, actor, streetName !== 'Preflop')}
+              </button>
+            ))}
+          </ButtonRow>
+        </div>
+        <div>
+          <RowLabel>Action</RowLabel>
+          {verbOpts ? (
+            <ButtonRow>
+              {verbOpts.verbs.map((v) => (
+                <button
+                  key={v}
+                  className="btn-secondary"
+                  onClick={() => chooseVerbForNewAction(streetName, pendingActor!, v)}
+                >
+                  {VERB_LABELS[v]}
+                </button>
+              ))}
+            </ButtonRow>
+          ) : (
+            <div className="muted" style={{ fontSize: '0.8rem', minHeight: 40, display: 'flex', alignItems: 'center' }}>
+              — pick a position first —
+            </div>
+          )}
+        </div>
+      </>
+    )
+  }
 
   // ── Chip styling ────────────────────────────────────────────────────────────
   function chipClass(chip: Chip): string {
     if (chip.kind === 'stakes') return 'chip chip-stakes'
     if (chip.kind === 'board-card-add') return 'chip chip-add'
     if (chip.kind === 'hero-pos') return 'chip chip-hero-pos'
-    if (chip.kind === 'action-verb' || chip.kind === 'showdown-verb') return 'chip chip-muted'
+    if (chip.kind === 'showdown-verb') return 'chip chip-muted'
     if (chip.kind === 'note') return 'chip chip-note'
     if (chip.kind === 'label') return 'chip chip-label'
     return 'chip'
   }
 
   function chipStyle(chip: Chip): React.CSSProperties | undefined {
-    if (chip.kind === 'action-actor' || chip.kind === 'showdown-actor') {
+    if (chip.kind === 'showdown-actor') {
       const marker = chip.meta?.marker
       const color = marker === 'H' ? HERO_COLOR : marker === 'V' ? VILLAIN_COLOR : actorColor(chip.meta?.actor ?? '')
       return { color, fontWeight: marker === 'H' ? 700 : 600 }
@@ -323,6 +425,23 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
       chip.meta?.cardCode
     ) {
       return <CardGlyph code={chip.meta.cardCode} />
+    }
+    // Merged action chip: two-tone — seat-coloured position, muted verb.
+    if (chip.kind === 'action' && chip.meta?.actorLabel) {
+      const marker = chip.meta.marker
+      const color = marker === 'H' ? HERO_COLOR : marker === 'V' ? VILLAIN_COLOR : actorColor(chip.meta.actor ?? '')
+      return (
+        <>
+          <span style={{ color, fontWeight: marker === 'H' ? 700 : 600 }}>{chip.meta.actorLabel}</span>
+          {chip.meta.verbText !== undefined && (
+            <>
+              {/* the chip is inline-flex, so the space is for textContent and the margin for layout */}
+              {' '}
+              <span style={{ color: 'var(--text-muted)', marginLeft: '0.35em' }}>{chip.meta.verbText}</span>
+            </>
+          )}
+        </>
+      )
     }
     return chip.text
   }
@@ -440,22 +559,57 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
           ))}</ButtonRow>
         </div>
       )
-    } else if (chip.editKind === 'actor') {
-      const options = legalActorsForActionSlot(state, chip.street!, chip.index!)
+    } else if (chip.editKind === 'action') {
+      const originalActor = chip.meta?.actor as Position
+      const currentVerb = chip.meta?.verb as Verb | undefined
+      const selectedActor = overlayActor ?? originalActor
+      // The stored verb stays selected only while the original position is; once the
+      // user moves to a position where it is illegal, it is deselected until re-picked.
+      const verbSelected = selectedActor === originalActor && currentVerb !== undefined
+      const actorOptions = legalActorsForActionSlot(state, chip.street!, chip.index!)
+      const { verbs: verbOptions } = legalVerbsForActorAtSlot(state, chip.street!, chip.index!, selectedActor)
+
+      const tapPosition = (pos: Position) => {
+        if (pos === selectedActor) return
+        const { verbs } = legalVerbsForActorAtSlot(state, chip.street!, chip.index!, pos)
+        if (verbSelected && verbs.includes(currentVerb!)) {
+          // Position-only edit: the current verb is still legal — apply in one tap.
+          apply(editAction(state, chip.street!, chip.index!, pos, currentVerb!, chip.meta?.amount))
+        } else {
+          setOverlayActor(pos)
+        }
+      }
+
       editContent = (
         <div>{editHeader}
-          <ButtonRow>{options.map((pos) => (
-            <button key={pos} className="btn-secondary" onClick={() => apply(editActor(state, chip.street!, chip.index!, pos))}>{pos}</button>
-          ))}</ButtonRow>
-        </div>
-      )
-    } else if (chip.editKind === 'verb') {
-      const { verbs } = legalVerbsForActionSlot(state, chip.street!, chip.index!)
-      editContent = (
-        <div>{editHeader}
-          <ButtonRow>{verbs.map((v) => (
-            <button key={v} className="btn-secondary" onClick={() => chooseVerb(chip.street!, chip.index!, v)}>{VERB_LABELS[v]}</button>
-          ))}</ButtonRow>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <RowLabel>Position</RowLabel>
+            <ButtonRow>
+              {actorOptions.map((pos) => (
+                <button
+                  key={pos}
+                  className={selectedActor === pos ? 'btn-primary' : 'btn-secondary'}
+                  onClick={() => tapPosition(pos)}
+                >
+                  {pos}
+                </button>
+              ))}
+            </ButtonRow>
+          </div>
+          <div>
+            <RowLabel>Action</RowLabel>
+            <ButtonRow>
+              {verbOptions.map((v) => (
+                <button
+                  key={v}
+                  className={verbSelected && v === currentVerb ? 'btn-primary' : 'btn-secondary'}
+                  onClick={() => chooseVerbForEdit(chip, selectedActor, v)}
+                >
+                  {VERB_LABELS[v]}
+                </button>
+              ))}
+            </ButtonRow>
+          </div>
         </div>
       )
     } else if (chip.editKind === 'showdown-actor') {
@@ -506,48 +660,31 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
   let stepContent: ReactNode = null
 
   if (amountEntry) {
-    stepLabel = amountEntry.optional ? 'Effective amount (optional)' : 'Amount'
+    stepLabel = amountEntry.optional ? 'Effective amount (optional)' : `${VERB_LABELS[amountEntry.verb]} amount`
     stepContent = (
-      <ChipAmountInput
-        amountInput={amountInput}
-        onAmountChange={setAmountInput}
-        onSubmit={submitAmount}
-        onSkip={amountEntry.optional ? skipAmount : undefined}
-      />
+      <>
+        <ChipAmountInput
+          amountInput={amountInput}
+          onAmountChange={setAmountInput}
+          onSubmit={submitAmount}
+          onSkip={amountEntry.optional ? skipAmount : undefined}
+        />
+        <div style={{ marginTop: '0.5rem' }}>
+          {/* Backs out without committing: to the combined panel (recording) or the edit overlay. */}
+          <button className="btn-ghost" onClick={() => { setAmountEntry(null); setAmountInput('') }}>← Back</button>
+        </div>
+      </>
     )
   } else if (addingToStreet !== null) {
-    const addStreet = state.streets.find((s) => s.name === addingToStreet)
-    const trailing = addStreet?.actions[addStreet.actions.length - 1]
-    const inVerbPhase = trailing && trailing.verb === undefined
-
-    if (inVerbPhase) {
-      const trailingIndex = (addStreet?.actions.length ?? 1) - 1
-      const { verbs } = legalVerbsForActionSlot(state, addingToStreet, trailingIndex)
-      stepLabel = `${addingToStreet}: ${trailing.actor}'s action`
-      stepContent = (
-        <>
-          <ButtonRow>{verbs.map((v) => (
-            <button key={v} className="btn-secondary" onClick={() => chooseVerb(addingToStreet, trailingIndex, v)}>{VERB_LABELS[v]}</button>
-          ))}</ButtonRow>
-          <div style={{ marginTop: '0.5rem' }}>
-            <button className="btn-ghost" onClick={() => undo()}>Cancel</button>
-          </div>
-        </>
-      )
-    } else {
-      const options = legalActorsForNewActionOnStreet(state, addingToStreet)
-      stepLabel = `${addingToStreet}: add action`
-      stepContent = (
-        <>
-          <ButtonRow>{options.map((actor) => (
-            <button key={actor} className="btn-secondary" onClick={() => handleAddActionActor(addingToStreet, actor)}>{suggestionLabel(state, actor, addingToStreet !== 'Preflop')}</button>
-          ))}</ButtonRow>
-          <div style={{ marginTop: '0.5rem' }}>
-            <button className="btn-ghost" onClick={() => setAddingToStreet(null)}>Cancel</button>
-          </div>
-        </>
-      )
-    }
+    stepLabel = `${addingToStreet}: add action`
+    stepContent = (
+      <>
+        {combinedActionPanel(addingToStreet, legalActorsForNewActionOnStreet(state, addingToStreet))}
+        <div style={{ marginTop: '0.5rem' }}>
+          <button className="btn-ghost" onClick={() => { setAddingToStreet(null); setPendingActor(null) }}>Cancel</button>
+        </div>
+      </>
+    )
   } else if (step.kind === 'board') {
     const validCount = pendingCards.length === 0 || (pendingCards.length >= 3 && pendingCards.length <= 5)
     const commitBoard = (cards: Card[]) => {
@@ -624,9 +761,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     stepLabel = currentStreet
     stepContent = (
       <>
-        <ButtonRow>{step.options.map((actor) => (
-          <button key={actor} className="btn-secondary" onClick={() => apply(beginAction(state, currentStreet, actor))}>{suggestionLabel(state, actor, currentStreet !== 'Preflop')}</button>
-        ))}</ButtonRow>
+        {combinedActionPanel(currentStreet, step.options)}
         {(step.canAdvance || step.canShowdown || step.canSave) && (
           <div className="row-wrap" style={{ marginTop: '0.6rem' }}>
             {step.canAdvance && next && (
@@ -643,11 +778,12 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
       </>
     )
   } else if (step.kind === 'verb') {
+    // Edge case: trailing verbless action (e.g. loaded from stored text).
     const trailingIndex = (state.streets.find((s) => s.name === step.street)?.actions.length ?? 1) - 1
-    stepLabel = 'Action'
+    stepLabel = `${step.actor}: action`
     stepContent = (
       <ButtonRow>{step.options.map((v) => (
-        <button key={v} className="btn-secondary" onClick={() => chooseVerb(step.street, trailingIndex, v)}>{VERB_LABELS[v]}</button>
+        <button key={v} className="btn-secondary" onClick={() => chooseVerbForTrailing(step.street, trailingIndex, v)}>{VERB_LABELS[v]}</button>
       ))}</ButtonRow>
     )
   } else if (step.kind === 'showdownActor') {
@@ -827,6 +963,14 @@ function ButtonRow({ children }: { children: ReactNode }) {
 function StepLabel({ children }: { children: ReactNode }) {
   return (
     <div className="section-label" style={{ marginBottom: '0.55rem' }}>
+      {children}
+    </div>
+  )
+}
+
+function RowLabel({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, marginBottom: '0.25rem' }}>
       {children}
     </div>
   )

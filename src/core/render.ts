@@ -155,8 +155,7 @@ export type ChipKind =
   | 'board-card-add'
   | 'hero-pos'
   | 'hero-card'
-  | 'action-actor'
-  | 'action-verb'
+  | 'action'
   | 'showdown-actor'
   | 'showdown-verb'
   | 'showdown-card'
@@ -168,8 +167,7 @@ export type EditKind =
   | 'board-card-add'
   | 'hero-pos'
   | 'hero-card'
-  | 'actor'
-  | 'verb'
+  | 'action'
   | 'showdown-actor'
   | 'showdown-verb'
   | 'showdown-card'
@@ -183,6 +181,10 @@ export interface ChipMeta {
   amount?: number
   actor?: string
   marker?: Marker
+  /** Two-tone rendering of a merged action chip: seat-coloured part… */
+  actorLabel?: string
+  /** …and muted conjugated-verb part, e.g. "raises 15". */
+  verbText?: string
 }
 
 export interface Chip {
@@ -203,13 +205,13 @@ export interface ChipLine {
   chips: Chip[]
 }
 
-const VERB_LABELS: Record<Verb, string> = {
-  x: 'Check',
-  c: 'Call',
-  r: 'Raise',
-  f: 'Fold',
-  b: 'Bet',
-  a: 'All In',
+const VERB_CHIP_WORDS: Record<Verb, string> = {
+  x: 'checks',
+  c: 'calls',
+  r: 'raises',
+  f: 'folds',
+  b: 'bets',
+  a: 'all in',
 }
 
 const SHOWDOWN_VERB_LABELS: Record<string, string> = {
@@ -224,12 +226,6 @@ function cardText(card: Card): string {
 
 function cardCode(card: Card): string {
   return card.rank + card.suit
-}
-
-function verbChipText(verb: Verb, amount?: number): string {
-  const label = VERB_LABELS[verb]
-  if (amount === undefined) return label
-  return `${label} ${amount}`
 }
 
 export function buildEditorView(state: HandState): ChipLine[] {
@@ -337,26 +333,28 @@ export function buildEditorView(state: HandState): ChipLine[] {
     const chips: Chip[] = []
     street.actions.forEach((action, i) => {
       const marker = markerFor(state, action.actor)
+      const label = markerLabel(action.actor, marker)
+      let verbText: string | undefined
+      if (action.verb !== undefined) {
+        const word = VERB_CHIP_WORDS[action.verb]
+        verbText = action.amount !== undefined ? `${word} ${action.amount}` : word
+      }
       chips.push({
-        id: `action:${street.name}:${i}:actor`,
-        kind: 'action-actor',
-        text: markerLabel(action.actor, marker),
-        editKind: 'actor',
+        id: `action:${street.name}:${i}`,
+        kind: 'action',
+        text: verbText !== undefined ? `${label} ${verbText}` : label,
+        editKind: 'action',
         street: street.name,
         index: i,
-        meta: { actor: action.actor, marker },
+        meta: {
+          actor: action.actor,
+          marker,
+          verb: action.verb,
+          amount: action.amount,
+          actorLabel: label,
+          verbText,
+        },
       })
-      if (action.verb !== undefined) {
-        chips.push({
-          id: `action:${street.name}:${i}:verb`,
-          kind: 'action-verb',
-          text: verbChipText(action.verb, action.amount),
-          editKind: 'verb',
-          street: street.name,
-          index: i,
-          meta: { verb: action.verb, amount: action.amount, actor: action.actor },
-        })
-      }
     })
     if (chips.length > 0) lines.push({ key: `street:${street.name}`, chips })
     noteLine(street.name)
