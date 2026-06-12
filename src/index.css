@@ -316,6 +316,11 @@ textarea {
   margin-top: 0.2rem;
 }
 
+.history-date-label {
+  margin-top: 0.4rem;
+  margin-bottom: -0.55rem;
+}
+
 .empty-state {
   text-align: center;
   color: var(--text-muted);

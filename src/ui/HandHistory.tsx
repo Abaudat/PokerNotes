@@ -2,6 +2,7 @@ import React from 'react'
 import { HERO_COLOR } from '../core/render'
 import { CardGlyph } from './cardGlyphs'
 import type { ListedHand } from '../data/repository'
+import { groupHandsByDate } from './handHistoryGrouping'
 
 const STREET_COUNT: Record<string, number> = { Preflop: 1, Flop: 2, Turn: 3, River: 4 }
 
@@ -38,40 +39,45 @@ export default function HandHistory({ hands, onNew, onView, onDelete }: Props) {
         </div>
       )}
 
-      {hands.map((hand) => {
-        const { stakes, heroPosition, heroCards, streetReached, totalPot } = hand.summary
-        const streetCount = STREET_COUNT[streetReached] ?? 1
-        const cards = heroPreview(heroCards)
-        const date = hand.createdAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-        const time = hand.createdAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+      {groupHandsByDate(hands).map((group) => (
+        <React.Fragment key={group.label}>
+          <div className="section-label history-date-label">{group.label}</div>
 
-        return (
-          <div key={hand.id} className="panel hand-card" onClick={() => onView(hand.id)}>
-            <div className="hand-card-cards">{cards}</div>
+          {group.hands.map((hand) => {
+            const { stakes, heroPosition, heroCards, streetReached, totalPot } = hand.summary
+            const streetCount = STREET_COUNT[streetReached] ?? 1
+            const cards = heroPreview(heroCards)
+            const time = hand.createdAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="hand-card-title">
-                {stakes ? `${stakes.replace(/\$/g, '')} NLH` : 'Unspecified stakes'}
-                {' · '}
-                <span style={{ color: HERO_COLOR }}>{heroPosition}</span>
-                {totalPot !== undefined && (
-                  <> · <span className="muted" style={{ fontWeight: 400 }}>Pot: {totalPot}</span></>
-                )}
+            return (
+              <div key={hand.id} className="panel hand-card" onClick={() => onView(hand.id)}>
+                <div className="hand-card-cards">{cards}</div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="hand-card-title">
+                    {stakes ? `${stakes.replace(/\$/g, '')} NLH` : 'Unspecified stakes'}
+                    {' · '}
+                    <span style={{ color: HERO_COLOR }}>{heroPosition}</span>
+                    {totalPot !== undefined && (
+                      <> · <span className="muted" style={{ fontWeight: 400 }}>Pot: {totalPot}</span></>
+                    )}
+                  </div>
+                  <div className="hand-card-meta">
+                    {streetCount} street{streetCount !== 1 ? 's' : ''} &nbsp;·&nbsp; {time}
+                  </div>
+                </div>
+
+                <button
+                  className="btn-danger"
+                  onClick={(e) => { e.stopPropagation(); onDelete(hand.id) }}
+                >
+                  Delete
+                </button>
               </div>
-              <div className="hand-card-meta">
-                {streetCount} street{streetCount !== 1 ? 's' : ''} &nbsp;·&nbsp; {date} {time}
-              </div>
-            </div>
-
-            <button
-              className="btn-danger"
-              onClick={(e) => { e.stopPropagation(); onDelete(hand.id) }}
-            >
-              Delete
-            </button>
-          </div>
-        )
-      })}
+            )
+          })}
+        </React.Fragment>
+      ))}
     </div>
   )
 }
