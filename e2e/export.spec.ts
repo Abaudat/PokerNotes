@@ -37,3 +37,19 @@ test("Exported clipboard text contains the hand's stakes", async ({ page }) => {
   const text = await page.evaluate(() => navigator.clipboard.readText())
   expect(text).toContain('1/2')
 })
+
+// Issue #44 — notes are included in the exported hand
+test('Exported clipboard text contains a saved note', async ({ page }) => {
+  await page.getByRole('button', { name: 'Edit' }).click()
+  await page.getByRole('button', { name: /type manually/ }).click()
+  await page.getByPlaceholder('note to add…').fill('villain seemed weak')
+  await page.getByRole('button', { name: 'Add note' }).click()
+  await page.getByRole('button', { name: 'Save hand' }).click()
+
+  // Saving an edit returns to history — reopen the hand.
+  await page.getByText('A♥ K♠', { exact: true }).click()
+  await page.getByRole('button', { name: 'Export' }).click()
+  await expect(page.getByRole('button', { name: '✓ Copied!' })).toBeVisible()
+  const text = await page.evaluate(() => navigator.clipboard.readText())
+  expect(text).toContain('# villain seemed weak')
+})

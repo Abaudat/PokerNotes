@@ -91,6 +91,19 @@ describe('buildHandViewModel', () => {
     expect(vm.showdown).toHaveLength(1)
     expect(vm.showdown![0]).toMatchObject({ actor: 'BB', verb: 'shows', cards: ['Qc', 'Jd'], marker: 'V', label: 'V (BB)' })
   })
+
+  it('exposes notes with their anchors', () => {
+    const vm = buildHandViewModel(
+      parseHand('Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15, BB c\n# villain seemed weak\nFlop: BB x, BTN x\n# checked back'),
+    )
+    expect(vm.notes).toHaveLength(2)
+    expect(vm.notes[0]).toMatchObject({ text: 'villain seemed weak', anchor: 'Preflop' })
+    expect(vm.notes[1]).toMatchObject({ text: 'checked back', anchor: 'Flop' })
+  })
+
+  it('notes is empty when the hand has none', () => {
+    expect(buildHandViewModel(parseHand(SAMPLE_RAW)).notes).toEqual([])
+  })
 })
 
 // ===========================================================================

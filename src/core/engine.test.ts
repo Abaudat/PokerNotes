@@ -20,6 +20,10 @@ import {
   legalVerbsForActorAtSlot,
   addAction,
   editAction,
+  addNote,
+  deleteNote,
+  availableNoteAnchors,
+  currentNoteAnchor,
   villainPosition,
   markerFor,
   markerLabel,
@@ -890,5 +894,84 @@ describe('editAction', () => {
     const state = st({ streets: [street('Preflop', 'UTG c')] })
     const next = editAction(state, 'Preflop', 0, 'BB', 'x')
     expect(next.streets[0].actions[0]).toMatchObject({ actor: 'BB', verb: 'x' })
+  })
+})
+
+// ===========================================================================
+// Notes — addNote / deleteNote / anchors
+// ===========================================================================
+
+describe('availableNoteAnchors', () => {
+  it('always offers the top anchor', () => {
+    expect(availableNoteAnchors(st({ board: undefined, hero: undefined }))).toContain('top')
+  })
+
+  it('offers each section that exists, in timeline order', () => {
+    const state = st({
+      stakes: '2/5',
+      streets: [street('Preflop', 'BTN r 15, BB c'), street('Flop', 'BB x, BTN x')],
+      showdown: [],
+    })
+    expect(availableNoteAnchors(state)).toEqual([
+      'top', 'stakes', 'board', 'hero', 'Preflop', 'Flop', 'showdown',
+    ])
+  })
+
+  it('omits sections that are not recorded yet', () => {
+    const anchors = availableNoteAnchors(st())
+    expect(anchors).not.toContain('stakes')
+    expect(anchors).not.toContain('Preflop')
+    expect(anchors).not.toContain('showdown')
+  })
+})
+
+describe('currentNoteAnchor', () => {
+  it('points at the latest street with actions', () => {
+    const state = st({ streets: [street('Preflop', 'BTN r 15, BB c'), street('Flop', 'BB x')] })
+    expect(currentNoteAnchor(state)).toBe('Flop')
+  })
+
+  it('points at showdown once it has begun', () => {
+    const state = st({ streets: [street('Preflop', 'BTN c, BB x')], showdown: [] })
+    expect(currentNoteAnchor(state)).toBe('showdown')
+  })
+})
+
+describe('addNote', () => {
+  it('anchors to the most recently-recorded section by default', () => {
+    const state = st({ streets: [street('Preflop', 'BTN r 15, BB c'), street('Flop', 'BB x')] })
+    expect(addNote(state, 'flop read').notes[0].anchor).toBe('Flop')
+  })
+
+  it('uses the explicit anchor when given', () => {
+    const state = st({ streets: [street('Preflop', 'BTN r 15, BB c'), street('Flop', 'BB x')] })
+    expect(addNote(state, 'villain seemed weak', 'Preflop').notes[0].anchor).toBe('Preflop')
+  })
+
+  it('throws when the anchor section does not exist', () => {
+    const state = st({ streets: [street('Preflop', 'BTN r 15, BB c')] })
+    expect(() => addNote(state, 'late note', 'showdown')).toThrow()
+  })
+
+  it('ignores empty text', () => {
+    expect(addNote(st(), '   ').notes).toHaveLength(0)
+  })
+})
+
+describe('deleteNote', () => {
+  it('removes the note with the given id', () => {
+    const state = addNote(st(), 'a read')
+    expect(deleteNote(state, state.notes[0].id).notes).toHaveLength(0)
+  })
+
+  it('leaves other notes untouched', () => {
+    const state = addNote(addNote(st(), 'first'), 'second')
+    const next = deleteNote(state, state.notes[0].id)
+    expect(next.notes.map((n) => n.text)).toEqual(['second'])
+  })
+
+  it('is a no-op for an unknown id', () => {
+    const state = addNote(st(), 'a read')
+    expect(deleteNote(state, 'nope').notes).toHaveLength(1)
   })
 })

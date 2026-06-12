@@ -864,7 +864,7 @@ export function setShowdownCards(state: HandState, index: number, cards: [Card, 
 // ---------------------------------------------------------------------------
 
 /** Anchor a new note to the most recently-recorded section. */
-function currentNoteAnchor(state: HandState): NoteAnchor {
+export function currentNoteAnchor(state: HandState): NoteAnchor {
   if (state.showdown !== undefined) return 'showdown'
   const withActions = [...state.streets].reverse().find((s) => s.actions.length > 0)
   if (withActions) return withActions.name
@@ -874,14 +874,38 @@ function currentNoteAnchor(state: HandState): NoteAnchor {
   return 'top'
 }
 
-export function addNote(state: HandState, text: string): HandState {
+/** Anchors a note may attach to right now — the sections that exist, in timeline order. */
+export function availableNoteAnchors(state: HandState): NoteAnchor[] {
+  const anchors: NoteAnchor[] = ['top']
+  if (state.stakes !== undefined) anchors.push('stakes')
+  if (state.board !== undefined) anchors.push('board')
+  if (state.hero?.cards) anchors.push('hero')
+  for (const street of state.streets) anchors.push(street.name)
+  if (state.showdown !== undefined) anchors.push('showdown')
+  return anchors
+}
+
+/**
+ * Append a note anchored to the given section (defaults to the most
+ * recently-recorded one). Rejects an anchor whose section does not exist, so a
+ * note can never be silently dropped by the serializer.
+ */
+export function addNote(state: HandState, text: string, anchor?: NoteAnchor): HandState {
   const trimmed = text.trim()
   if (!trimmed) return state
-  return { ...state, notes: [...state.notes, { id: mkId(), text: trimmed, anchor: currentNoteAnchor(state) }] }
+  const target = anchor ?? currentNoteAnchor(state)
+  if (!availableNoteAnchors(state).includes(target)) {
+    throw new Error(`addNote: anchor '${target}' does not exist in this hand`)
+  }
+  return { ...state, notes: [...state.notes, { id: mkId(), text: trimmed, anchor: target }] }
 }
 
 export function editNote(state: HandState, noteId: string, text: string): HandState {
   return { ...state, notes: state.notes.map((n) => (n.id === noteId ? { ...n, text: text.trim() } : n)) }
+}
+
+export function deleteNote(state: HandState, noteId: string): HandState {
+  return { ...state, notes: state.notes.filter((n) => n.id !== noteId) }
 }
 
 // ---------------------------------------------------------------------------
