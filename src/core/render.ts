@@ -1,6 +1,6 @@
 import { formatCard, SUIT_GLYPHS } from './cards'
 import { computePotAtStreetStart, markerFor, markerLabel } from './engine'
-import type { HandState, Position, StreetName, Verb, Card, Marker } from './types'
+import type { HandState, NoteAnchor, Position, StreetName, Verb, Card, Marker } from './types'
 
 export const HERO_COLOR = '#d4ab5a'
 /** Distinct colour for the lone villain's marked seat. */
@@ -74,6 +74,12 @@ export interface ShowdownActionViewModel {
   color: string
 }
 
+export interface NoteViewModel {
+  id: string
+  text: string
+  anchor: NoteAnchor
+}
+
 export interface HandViewModel {
   stakes?: string
   board: string[]
@@ -81,6 +87,8 @@ export interface HandViewModel {
   streets: StreetViewModel[]
   showdown?: ShowdownActionViewModel[]
   showdownPot?: number
+  /** Free-text notes, to render after the section their anchor names. */
+  notes: NoteViewModel[]
 }
 
 export function buildHandViewModel(state: HandState): HandViewModel {
@@ -142,7 +150,9 @@ export function buildHandViewModel(state: HandState): HandViewModel {
       ? computePotAtStreetStart(state, state.streets.length)
       : undefined
 
-  return { stakes: state.stakes, board, hero, streets, showdown, showdownPot }
+  const notes: NoteViewModel[] = state.notes.map((n) => ({ id: n.id, text: n.text, anchor: n.anchor }))
+
+  return { stakes: state.stakes, board, hero, streets, showdown, showdownPot, notes }
 }
 
 // ===========================================================================

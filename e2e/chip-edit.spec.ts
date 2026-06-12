@@ -544,6 +544,45 @@ test('edit note chip — change note text', async ({ page }) => {
   await expect(page.locator('[data-chip-id="note:0"]')).toHaveText('# updated note')
 })
 
+test('delete note chip — note is removed', async ({ page }) => {
+  await recordMinimalComplete(page)
+  await page.getByRole('button', { name: /type manually/ }).click()
+  await page.getByPlaceholder('note to add…').fill('a note to delete')
+  await page.getByRole('button', { name: 'Add note' }).click()
+  await expect(page.locator('[data-chip-id="note:0"]')).toBeVisible()
+
+  await page.locator('[data-chip-id="note:0"]').click()
+  await page.getByTestId('delete-note').click()
+
+  await expect(page.locator('[data-chip-id="note:0"]')).toHaveCount(0)
+})
+
+test('add note to a previous street — note chip appears under that street', async ({ page }) => {
+  // Record through the flop so Preflop is a previous street.
+  await recordUpToPreflop(page)
+  await page.getByRole('button', { name: 'H', exact: true }).click()
+  await page.getByRole('button', { name: 'Call' }).click()
+  await page.getByRole('button', { name: 'BB', exact: true }).click()
+  await page.getByRole('button', { name: 'Check' }).click()
+  await page.getByRole('button', { name: '→ Flop' }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'V', exact: true }).click()
+  await page.locator('[data-testid="step-content"]').getByRole('button', { name: 'Check' }).click()
+
+  await page.getByRole('button', { name: /type manually/ }).click()
+  await page.getByTestId('note-anchor-Preflop').click()
+  await page.getByPlaceholder('note to add…').fill('preflop read')
+  await page.getByRole('button', { name: 'Add note' }).click()
+
+  await expect(page.locator('[data-chip-id="note:0"]')).toHaveText('# preflop read')
+  // The note must sit before the flop actions in the recorded display.
+  const noteBeforeFlop = await page.evaluate(() => {
+    const note = document.querySelector('[data-chip-id="note:0"]')!
+    const flopAction = document.querySelector('[data-chip-id="action:Flop:0"]')!
+    return (note.compareDocumentPosition(flopAction) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+  })
+  expect(noteBeforeFlop).toBe(true)
+})
+
 // ── Save after edits ──────────────────────────────────────────────────────────
 
 test('save succeeds after chip edits', async ({ page }) => {

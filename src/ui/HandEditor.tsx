@@ -29,6 +29,9 @@ import {
   setShowdownCards,
   addNote,
   editNote,
+  deleteNote,
+  availableNoteAnchors,
+  currentNoteAnchor,
   editBoardCard,
   addBoardCard,
   editHeroPosition,
@@ -41,7 +44,7 @@ import {
 import { buildEditorView, POSITION_COLORS, HERO_COLOR, VILLAIN_COLOR } from '../core/render'
 import { CardGlyph } from './cardGlyphs'
 import type { Chip } from '../core/render'
-import type { HandState, Verb, Card, ShowdownVerb, StreetName, Position } from '../core/types'
+import type { HandState, Verb, Card, NoteAnchor, ShowdownVerb, StreetName, Position } from '../core/types'
 
 const VERB_LABELS: Record<Verb, string> = {
   x: 'Check', c: 'Call', r: 'Raise', f: 'Fold', b: 'Bet', a: 'All In',
@@ -51,6 +54,10 @@ const SHOWDOWN_VERB_LABELS: Record<ShowdownVerb, string> = {
   shows: 'Shows', wins: 'Wins', loses: 'Loses',
 }
 const STAKES_PRESETS = ['1/2', '2/5', '5/5', '5/10', '10/20']
+const ANCHOR_LABELS: Record<NoteAnchor, string> = {
+  top: 'Top', stakes: 'Stakes', board: 'Board', hero: 'Hero',
+  Preflop: 'Preflop', Flop: 'Flop', Turn: 'Turn', River: 'River', showdown: 'Showdown',
+}
 
 interface Props {
   initialRaw?: string
@@ -211,6 +218,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
   )
   const [freeInput, setFreeInput] = useState('')
   const [showFree, setShowFree] = useState(false)
+  const [noteAnchor, setNoteAnchor] = useState<NoteAnchor | null>(null)
   const [activeEdit, setActiveEdit] = useState<Chip | null>(null)
   const [amountEntry, setAmountEntry] = useState<AmountEntry | null>(null)
   const [addingToStreet, setAddingToStreet] = useState<StreetName | null>(null)
@@ -227,6 +235,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     setActiveEdit(null)
     setShowFree(false)
     setFreeInput('')
+    setNoteAnchor(null)
     setAddingToStreet(null)
     setPendingActor(null)
     setOverlayActor(null)
@@ -336,9 +345,9 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
     }
   }
 
-  function commitNote(note: string) {
+  function commitNote(note: string, anchor: NoteAnchor) {
     if (!note.trim()) return
-    apply(addNote(state, note))
+    apply(addNote(state, note, anchor))
   }
 
   function startAddingToStreet(streetName: StreetName) {
@@ -649,6 +658,7 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
               className="input-flex"
             />
             <button className="btn-primary" disabled={!isValid} onClick={() => apply(editNote(state, chip.noteId!, amountInput.trim()))}>OK</button>
+            <button className="btn-secondary" data-testid="delete-note" onClick={() => apply(deleteNote(state, chip.noteId!))}>Delete</button>
           </div>
         </div>
       )
@@ -846,15 +856,46 @@ export default function HandEditor({ initialRaw, defaultStakes, onSave, onCancel
   )
 
   // ── Free-text note ────────────────────────────────────────────────────────────
+  // The note attaches to a chosen section (defaulting to the latest one), so a
+  // comment can still be added to an earlier street.
+  const anchorOptions = availableNoteAnchors(state)
+  const selectedAnchor =
+    noteAnchor !== null && anchorOptions.includes(noteAnchor) ? noteAnchor : currentNoteAnchor(state)
   const freeSection = (
     <div className="divider-top">
       {!showFree ? (
         <button className="btn-ghost" onClick={() => setShowFree(true)}>··· type manually</button>
       ) : (
-        <div className="row">
-          <input value={freeInput} onChange={(e) => setFreeInput(e.target.value)} autoFocus placeholder="note to add…" className="input-flex" />
-          <button className="btn-primary" onClick={() => commitNote(freeInput)}>Add note</button>
-          <button className="btn-secondary" onClick={() => { setShowFree(false); setFreeInput('') }}>Cancel</button>
+        <div className="stack-sm">
+          <div className="row">
+            <input
+              value={freeInput}
+              onChange={(e) => setFreeInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitNote(freeInput, selectedAnchor) }}
+              autoFocus
+              placeholder="note to add…"
+              className="input-flex"
+            />
+            <button className="btn-primary" onClick={() => commitNote(freeInput, selectedAnchor)}>Add note</button>
+            <button className="btn-secondary" onClick={() => { setShowFree(false); setFreeInput(''); setNoteAnchor(null) }}>Cancel</button>
+          </div>
+          {anchorOptions.length > 1 && (
+            <div>
+              <RowLabel>Attach to</RowLabel>
+              <ButtonRow>
+                {anchorOptions.map((anchor) => (
+                  <button
+                    key={anchor}
+                    data-testid={`note-anchor-${anchor}`}
+                    className={`${selectedAnchor === anchor ? 'btn-primary' : 'btn-secondary'} btn-small`}
+                    onClick={() => setNoteAnchor(anchor)}
+                  >
+                    {ANCHOR_LABELS[anchor]}
+                  </button>
+                ))}
+              </ButtonRow>
+            </div>
+          )}
         </div>
       )}
     </div>

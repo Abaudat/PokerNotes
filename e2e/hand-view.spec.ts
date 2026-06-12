@@ -57,3 +57,16 @@ test('Edit button opens the hand in the recording editor', async ({ page }) => {
   await page.getByRole('button', { name: 'Edit' }).click()
   await expect(page.getByRole('heading', { name: 'Edit hand' })).toBeVisible()
 })
+
+// Issue #44 — notes are displayed in the hand view
+test('View shows a saved note', async ({ page }) => {
+  await page.getByRole('button', { name: 'Edit' }).click()
+  await page.getByRole('button', { name: /type manually/ }).click()
+  await page.getByPlaceholder('note to add…').fill('villain seemed weak')
+  await page.getByRole('button', { name: 'Add note' }).click()
+  await page.getByRole('button', { name: 'Save hand' }).click()
+
+  // Saving an edit returns to history — reopen the hand.
+  await page.getByText('A♥ K♥', { exact: true }).click()
+  await expect(page.getByText('# villain seemed weak')).toBeVisible()
+})

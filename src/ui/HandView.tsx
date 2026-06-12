@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { buildHandViewModel } from '../core/render'
 import { formatForExport } from '../core/export'
 import { CardTile } from './cardGlyphs'
+import type { NoteViewModel } from '../core/render'
+import type { NoteAnchor } from '../core/types'
 import type { SavedHand } from '../app/App'
 
 const VERB_LABELS: Record<string, string> = {
@@ -19,9 +21,23 @@ interface Props {
   onEdit: () => void
 }
 
+function NoteRows({ notes }: { notes: NoteViewModel[] }) {
+  if (notes.length === 0) return null
+  return (
+    <div className="stack-sm">
+      {notes.map((note) => (
+        <div key={note.id} className="note-row"># {note.text}</div>
+      ))}
+    </div>
+  )
+}
+
 export default function HandView({ hand, onBack, onEdit }: Props) {
   const [copied, setCopied] = useState(false)
   const vm = buildHandViewModel(hand.state)
+
+  const notesFor = (...anchors: NoteAnchor[]) =>
+    vm.notes.filter((n) => anchors.includes(n.anchor))
 
   function handleExport() {
     const text = formatForExport(hand.state)
@@ -48,9 +64,10 @@ export default function HandView({ hand, onBack, onEdit }: Props) {
           {vm.stakes} NLH &nbsp;·&nbsp; {hand.savedAt.toLocaleString()}
         </div>
       )}
+      <NoteRows notes={notesFor('top', 'stakes')} />
 
       {/* Hero */}
-      <section>
+      <section className="stack-sm">
         <div className="row" style={{ gap: '0.75rem' }}>
           <span className="hero-badge">HERO</span>
           <span style={{ color: vm.hero.color, fontWeight: 600 }}>{vm.hero.position}</span>
@@ -59,17 +76,19 @@ export default function HandView({ hand, onBack, onEdit }: Props) {
             <CardTile code={vm.hero.cards[1]} />
           </span>
         </div>
+        <NoteRows notes={notesFor('hero')} />
       </section>
 
       {/* Board */}
-      {vm.board.length > 0 && (
-        <section>
+      {(vm.board.length > 0 || notesFor('board').length > 0) && (
+        <section className="stack-sm">
           <div className="section-label" style={{ marginBottom: '0.45rem' }}>Board</div>
           <div className="row-wrap" style={{ gap: '0.4rem' }}>
             {vm.board.map((code, i) => (
               <CardTile key={i} code={code} />
             ))}
           </div>
+          <NoteRows notes={notesFor('board')} />
         </section>
       )}
 
@@ -100,6 +119,7 @@ export default function HandView({ hand, onBack, onEdit }: Props) {
                 </div>
               )
             })}
+            <NoteRows notes={notesFor(street.name)} />
           </div>
         </section>
       ))}
@@ -135,6 +155,7 @@ export default function HandView({ hand, onBack, onEdit }: Props) {
                 </div>
               )
             })}
+            <NoteRows notes={notesFor('showdown')} />
           </div>
         </section>
       )}

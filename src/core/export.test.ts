@@ -134,4 +134,23 @@ describe('formatForExport', () => {
     const output = formatForExport(ast)
     expect(output).toContain('Board:')
   })
+
+  it('emits a note on its own line with a # prefix', () => {
+    const raw = `Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15, BB c\n# villain seemed weak`
+    const lines = formatForExport(parseHand(raw)).split('\n')
+    expect(lines).toContain('# villain seemed weak')
+  })
+
+  it('emits notes right after the section they are anchored to', () => {
+    const raw = `Board: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15, BB c\n# preflop read\nFlop: BB x, BTN x\n# flop went check-check`
+    const lines = formatForExport(parseHand(raw)).split('\n')
+    expect(lines.indexOf('# preflop read')).toBe(lines.findIndex((l) => l.startsWith('Preflop:')) + 1)
+    expect(lines.indexOf('# flop went check-check')).toBe(lines.findIndex((l) => l.startsWith('Flop')) + 1)
+  })
+
+  it('emits a top-anchored note before the board line', () => {
+    const raw = `# game was wild tonight\nBoard: As 8h Td\nHero: BTN AhKs\nPreflop: BTN r 15, BB c`
+    const lines = formatForExport(parseHand(raw)).split('\n')
+    expect(lines.indexOf('# game was wild tonight')).toBeLessThan(lines.findIndex((l) => l.startsWith('Board:')))
+  })
 })

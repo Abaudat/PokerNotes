@@ -408,6 +408,12 @@ button.chip:not(:disabled):hover {
   font-size: 0.78rem;
 }
 
+.note-row {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.82rem;
+}
+
 .chip-add {
   border-style: dashed;
   background: transparent;
